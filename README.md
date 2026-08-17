@@ -45,6 +45,19 @@ This README is the _reference_. The course is the _path_.
 
 Assumes you've already built the VM per `docs/vcenter-vm-setup.md` and can SSH into it.
 
+**On a minimal/netinst Debian install, check one thing first.** The netinst image ships almost nothing, and if you set a root password during installation, Debian does *not* add your user to the `sudo` group. `setup.sh` checks for both and tells you how to fix it, but you can get ahead of it:
+
+```bash
+# If `sudo -v` fails or sudo isn't installed at all:
+su -
+apt-get update && apt-get install -y sudo
+usermod -aG sudo <your-user>
+exit
+# then log out and back in — group changes need a new login
+```
+
+Everything else (`curl`, `gnupg`, `ca-certificates`, `iproute2`) is installed automatically by `setup.sh` before it needs them.
+
 ```bash
 # 1. Get these files onto the VM (git clone, scp, or unzip —
 #    see docs/distributing.md for all three)
@@ -261,7 +274,12 @@ The automation approach itself also traces back further, to a team automation co
 | `ifdown: dhcpd is not running` | Benign — that's the DHCP _server_ daemon, not the client. Ignore it. |
 | No DHCP lease | Confirm the VM's NIC is attached to a bridge/port group with DHCP — `vmbr0` on Proxmox, the routable port group on VMware — and that you picked VirtIO (Proxmox) or VMXNET3 (VMware). Try `sudo dhclient -v <iface>`. |
 | apt warns "configured multiple times" | Duplicate repo entries. Check for a stray `/etc/apt/sources.list.d/trixie.list` alongside the stock `debian.sources` and delete the one you didn't intend. |
-| `docker: 404` on apt update | Docker hasn't published your exact Trixie point release yet — set `DOCKER_CODENAME=bookworm` in `00-bootstrap.sh` and re-run. |
+| `docker: 404` on apt update | Docker hasn't published your release yet. `00-bootstrap.sh` detects the codename from `/etc/os-release` and retries against `bookworm` automatically; force it with `DOCKER_CODENAME=bookworm ./scripts/00-bootstrap.sh`. |
+| `sudo: command not found`, or "user is not in the sudoers file" | Debian's installer skips `sudo` and leaves your user out of the `sudo` group when you set a root password. See the Quick Start note above. |
+| Spinner spins forever, never finishes | Something under the spinner is waiting on input you can't see. Setup primes `sudo` up front to prevent this; if it recurs, re-run with `CLAB_VERBOSE=1 ./setup.sh` to see the prompt. |
+| A step fails and you can't tell why | `CLAB_VERBOSE=1 ./setup.sh` skips the spinner and streams every command's output live. Or run the underlying script directly: `bash scripts/00-bootstrap.sh`. |
+| `E: The repository ... is not signed` / `Failed to parse keyring` | A repo file whose `signed-by=` key is missing — an interrupted install can leave `charm.list` or `docker.list` behind without its keyring. This breaks **every** `apt-get update` on the box, not just this script's. `setup.sh` now detects it during preflight and offers to disable the file; to fix by hand, `sudo rm /etc/apt/sources.list.d/<name>.list`. |
+| `apt-get update` fails during bootstrap | Run `sudo apt-get update` by hand — the failing repo is named in the error. Then `ls /etc/apt/sources.list.d/` to see what's configured. |
 | `ssh spine1` fails, "could not resolve hostname" | New shell session hasn't picked up `/etc/ssh/ssh_config.d/`. Log out/in, or use `sudo containerlab inspect -t <file>` to get the IP directly. |
 | cEOS import "hash mismatch" | Re-verify on your laptop first (`shasum -a 512 -c ...`); if that's OK, the corruption happened in transit — re-`scp` and don't let the laptop sleep mid-transfer. |
 | `04_idempotent_deploy.py` shows a diff every run, never settles | cEOS eAPI config compare can be picky about exact syntax — check `templates/ceos_base.j2` renders valid EOS config by hand first (`ssh` in and paste it). |

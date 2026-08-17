@@ -53,6 +53,26 @@ if ! ui_confirm "Ready to start?"; then
 fi
 
 # ---------------------------------------------------------------------------
+# Preflight: sudo + prerequisites
+#
+# This has to happen here, before the first ui_spin. Spinners hide prompts,
+# so any password or apt question asked later reads as a hang.
+# ---------------------------------------------------------------------------
+ui_step "Checking prerequisites"
+if ! ui_ensure_sudo; then
+  exit 1
+fi
+# Must run before anything touches apt — a repo with a missing signing key
+# makes every apt-get update fail, including the one in ui_ensure_base_deps.
+if ! ui_repair_apt_sources; then
+  exit 1
+fi
+if ! ui_ensure_base_deps; then
+  exit 1
+fi
+ui_ok "Prerequisites OK"
+
+# ---------------------------------------------------------------------------
 # Step 0: pretty output (gum)
 # ---------------------------------------------------------------------------
 if ! ui_has_gum; then
@@ -63,7 +83,9 @@ binary from Charm, installed from their apt repo.
 
 Purely cosmetic — everything works without it."
   if ui_confirm "Install gum for a nicer setup experience?"; then
-    if ui_spin "Installing gum" bash -c "source '$REPO_DIR/lib/ui.sh'; ui_install_gum"; then
+    # set -e matters: without it a failed step here just falls through to the
+    # next one, which is how a half-configured apt repo used to get left behind.
+    if ui_spin "Installing gum" bash -c "set -e; source '$REPO_DIR/lib/ui.sh'; ui_install_gum"; then
       # Re-source so the rest of this run uses the gum code paths.
       # shellcheck source=lib/ui.sh
       source "$REPO_DIR/lib/ui.sh"

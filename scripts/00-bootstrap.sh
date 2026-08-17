@@ -19,17 +19,36 @@
 # Run as the regular user with sudo rights, NOT as root:
 #   ./00-bootstrap.sh
 #
-set -euo pipefail
+# -E so the ERR trap below is inherited by functions and subshells.
+set -Eeuo pipefail
+
+# This script usually runs captured behind a spinner, where a bare non-zero
+# exit tells you nothing. Report exactly which command died and where.
+_on_err() {
+  local rc=$?
+  {
+    echo
+    echo "!! 00-bootstrap.sh FAILED"
+    echo "   line:      ${BASH_LINENO[0]}"
+    echo "   command:   ${BASH_COMMAND}"
+    echo "   exit code: ${rc}"
+    echo
+  } >&2
+  exit "$rc"
+}
+trap _on_err ERR
 
 # ---------------------------------------------------------------------------
 # Config — edit if your environment differs
 # ---------------------------------------------------------------------------
 
-# Docker publishes packages under the Debian codename directly now. If apt
-# 404s on this during `apt update` (Docker hasn't cut packages for a very
-# new point release yet), set this to "bookworm" instead — that was the
-# workaround needed on the original Trixie build.
-DOCKER_CODENAME="trixie"
+# Docker publishes packages under the Debian codename directly. Read the
+# codename off the running system rather than hardcoding it, so this works on
+# bookworm as well as trixie. Override by exporting DOCKER_CODENAME=bookworm.
+# If Docker hasn't cut packages for this release yet, the install step below
+# retries against bookworm on its own.
+DOCKER_CODENAME="${DOCKER_CODENAME:-$( . /etc/os-release 2>/dev/null && echo "${VERSION_CODENAME:-}" )}"
+DOCKER_CODENAME="${DOCKER_CODENAME:-bookworm}"
 
 # $USER isn't always set in non-login/non-interactive shells (e.g. when this
 # is called from setup.sh), and `set -u` would abort on it — fall back to
@@ -45,6 +64,34 @@ warn() { printf '\n\033[1;33m!!\033[0m %s\n' "$1"; }
 if [[ $EUID -eq 0 ]]; then
   echo "Run this as your normal user (it calls sudo itself), not as root." >&2
   exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# 0. sudo
+#
+# setup.sh primes the sudo cache before calling us, so `sudo -n` succeeds and
+# nothing prompts. Run standalone from a terminal, we prompt here instead.
+# What we must never do is let sudo prompt while our output is being captured
+# — the prompt goes to /dev/tty, the caller's spinner erases it, and the whole
+# thing looks like a hang.
+# ---------------------------------------------------------------------------
+if ! command -v sudo >/dev/null 2>&1; then
+  echo "sudo is not installed. From a root shell:" >&2
+  echo "  su -" >&2
+  echo "  apt-get update && apt-get install -y sudo" >&2
+  echo "  usermod -aG sudo $(id -un)" >&2
+  echo "Then log out, back in, and re-run this." >&2
+  exit 1
+fi
+
+if ! sudo -n true 2>/dev/null; then
+  if [[ -t 0 ]]; then
+    sudo -v || { echo "Need sudo rights to continue." >&2; exit 1; }
+  else
+    echo "sudo needs a password but there's no terminal to ask on." >&2
+    echo "Run 'sudo -v' first, then re-run this script." >&2
+    exit 1
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -107,7 +154,20 @@ deb http://security.debian.org/debian-security trixie-security main
 EOF
 fi
 
-sudo apt-get update -qq
+# Not -qq here: -qq hides the very errors we need when this fails, and a
+# failing third-party repo (charm, docker) is the most common reason it does.
+# -q keeps it tidy without gagging apt.
+log "Updating apt package lists"
+if ! sudo apt-get update -q; then
+  warn "apt-get update failed."
+  warn "Usual cause: a third-party repo in /etc/apt/sources.list.d/ is"
+  warn "unreachable, unsigned, or has no packages for this Debian release."
+  warn "Look at the errors above — the failing repo is named in them."
+  warn ""
+  warn "To see what's configured:  ls /etc/apt/sources.list.d/"
+  warn "Remove a broken one with:  sudo rm /etc/apt/sources.list.d/<name>.list"
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # 3. Base packages
@@ -132,15 +192,33 @@ else
   sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
   sudo chmod a+r /etc/apt/keyrings/docker.asc
 
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian ${DOCKER_CODENAME} stable" \
-    | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+  write_docker_list() {
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $1 stable" \
+      | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+  }
 
-  sudo apt-get update -qq
-  if ! sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
-    warn "Docker install failed against codename '${DOCKER_CODENAME}'."
-    warn "Docker's repo may not have packages for this Trixie point release yet."
-    warn "Edit DOCKER_CODENAME=bookworm near the top of this script and re-run."
-    exit 1
+  echo "Using Docker repo codename: ${DOCKER_CODENAME}"
+  write_docker_list "$DOCKER_CODENAME"
+
+  # Docker sometimes lags a fresh Debian release. If this codename has no
+  # packages, fall back to bookworm — the binaries are compatible and this is
+  # the workaround the original Trixie build needed.
+  if ! sudo apt-get update -qq 2>/dev/null \
+     || ! sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+    if [[ "$DOCKER_CODENAME" != "bookworm" ]]; then
+      warn "No Docker packages for '${DOCKER_CODENAME}' — retrying with bookworm."
+      write_docker_list bookworm
+      sudo apt-get update -qq
+      if ! sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+        warn "Docker install failed against both '${DOCKER_CODENAME}' and bookworm."
+        warn "Check https://download.docker.com/linux/debian/dists/ for what's published."
+        exit 1
+      fi
+    else
+      warn "Docker install failed against codename 'bookworm'."
+      warn "Check https://download.docker.com/linux/debian/dists/ for what's published."
+      exit 1
+    fi
   fi
 fi
 
@@ -220,11 +298,15 @@ fi
 
 chmod +x "$LABS_DIR/automation/link-inventory.sh" 2>/dev/null || true
 
-cat >> "$HOME/.bashrc" <<EOF
+# This script is meant to be re-runnable, so don't stack up duplicate aliases
+# in .bashrc every time someone runs it again.
+if ! grep -q 'added by clab-bootstrap' "$HOME/.bashrc" 2>/dev/null; then
+  cat >> "$HOME/.bashrc" <<EOF
 
 # Network automation venv (added by clab-bootstrap)
 alias netauto="source $VENV_DIR/bin/activate"
 EOF
+fi
 
 log "Bootstrap complete."
 cat <<EOF

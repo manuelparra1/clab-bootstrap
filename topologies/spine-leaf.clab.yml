@@ -18,14 +18,15 @@
 # Destroy:  ./scripts/02-deploy-lab.sh topologies/spine-leaf.clab.yml destroy
 #
 # ~4 cEOS nodes x 0.5-1 GB RAM each. Destroy the testlab first if RAM is
-# tight. Update the image tag below if you imported a different version.
+# tight. `ceos:latest` is an alias 01-import-ceos.sh applies to whatever cEOS
+# version you imported — see the note in testlab.clab.yml.
 
 name: spineleaf
 
 topology:
   kinds:
     ceos:
-      image: ceos:4.35.3F
+      image: ceos:latest
   nodes:
     spine1:
       kind: ceos

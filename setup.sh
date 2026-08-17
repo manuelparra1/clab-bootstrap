@@ -239,7 +239,7 @@ So everyone grabs their own copy.
       fi
     fi
     if [[ -z "$FOUND" ]]; then
-      FOUND=$(ui_input "Full path to the cEOS .tar.xz:" "$HOME/cEOS64-lab-4.35.3F.tar.xz")
+      FOUND=$(ui_input "Full path to the cEOS .tar.xz:" "$HOME/cEOS64-lab-<version>.tar.xz")
     fi
 
     if [[ -f "$FOUND" ]]; then
@@ -273,6 +273,14 @@ ui_header "Step 3 of 4 — Deploy the test lab"
 ui_note "This deploys a 2-node topology: two Arista switches wired
 back-to-back. It's a smoke test — if these two come up and can see each
 other, the whole platform works and you can build anything from here."
+
+# Always sync ~/labs, even when the bootstrap was skipped. 02-deploy-lab.sh
+# deploys from ~/labs/topologies, so on an already-provisioned box — where you
+# quite reasonably answer "no" to re-running the bootstrap — that copy would
+# otherwise stay at whatever it was when it was first seeded.
+if ! bash "$REPO_DIR/scripts/sync-labs.sh"; then
+  ui_warn "Couldn't sync ~/labs from the repo; deploying whatever is there."
+fi
 
 if ui_confirm "Deploy the test topology now?"; then
   if ui_spin "Deploying testlab (cEOS nodes take ~60s to boot)" \

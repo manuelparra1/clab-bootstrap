@@ -129,6 +129,20 @@ python3 04_idempotent_deploy.py   # run again — this time nothing changes
 
 Everyone on the team needs their own Arista account for this — the image itself can't be redistributed through this repo.
 
+### Image tags
+
+Because everyone downloads their own build, the cEOS version differs per person — so the topologies reference **`ceos:latest`** rather than a pinned version. `01-import-ceos.sh` tags each import as both `ceos:<version>` and `ceos:latest`, so `docker images` still shows exactly what you have while the topologies keep working across upgrades.
+
+`02-deploy-lab.sh` checks the topology's image exists locally before deploying. This matters because containerlab treats a missing image as "pull it from a registry", and cEOS is on no public registry — so a tag mismatch surfaces as:
+
+```
+pull access denied for ceos, repository does not exist or may require 'docker login'
+```
+
+which looks like an authentication problem but is always local. The preflight reports the real cause and lists what you actually have imported. If `ceos:latest` is missing but exactly one cEOS image exists, it adopts that one automatically.
+
+To pin a specific version instead, set `image: ceos:<version>` in the topology — the preflight validates that too.
+
 ---
 
 ## Two automation paths
@@ -295,6 +309,8 @@ The automation approach itself also traces back further, to a team automation co
 | `E: The repository ... is not signed` / `Failed to parse keyring` | A repo file whose `signed-by=` key is missing — an interrupted install can leave `charm.list` or `docker.list` behind without its keyring. This breaks **every** `apt-get update` on the box, not just this script's. `setup.sh` now detects it during preflight and offers to disable the file; to fix by hand, `sudo rm /etc/apt/sources.list.d/<name>.list`. |
 | `apt-get update` fails during bootstrap | Run `sudo apt-get update` by hand — the failing repo is named in the error. Then `ls /etc/apt/sources.list.d/` to see what's configured. |
 | `ssh spine1` fails, "could not resolve hostname" | New shell session hasn't picked up `/etc/ssh/ssh_config.d/`. Log out/in, or use `sudo containerlab inspect -t <file>` to get the IP directly. |
+| `pull access denied for ceos, repository does not exist` | Not an auth problem — the topology's `image:` tag doesn't match anything imported locally, so containerlab tried a registry. Run `docker images \| grep ceos` and either `docker tag <image> ceos:latest` or set the topology's `image:` to match. `02-deploy-lab.sh` now checks this up front. |
+| Deploy uses an old topology after a `git pull` | `~/labs/topologies/` is the working copy `02-deploy-lab.sh` defaults to. The bootstrap syncs it from the repo, but leaves files you've edited alone (it says so when it does). Delete your copy to take the repo version. |
 | cEOS import "hash mismatch" | Re-verify on your laptop first (`shasum -a 512 -c ...`); if that's OK, the corruption happened in transit — re-`scp` and don't let the laptop sleep mid-transfer. |
 | `04_idempotent_deploy.py` shows a diff every run, never settles | cEOS eAPI config compare can be picky about exact syntax — check `templates/ceos_base.j2` renders valid EOS config by hand first (`ssh` in and paste it). |
 | `uv: command not found` right after bootstrap | `uv` installs to `~/.local/bin`; open a new shell (or `source ~/.bashrc`) so `PATH` picks it up. |

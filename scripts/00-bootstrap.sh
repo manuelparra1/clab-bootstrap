@@ -323,9 +323,15 @@ fi
 # 6. Working directories
 # ---------------------------------------------------------------------------
 log "Setting up ~/labs working directory"
-mkdir -p "$LABS_DIR"/{topologies,automation}
-cp -n "$REPO_DIR"/topologies/*.yml "$LABS_DIR/topologies/" 2>/dev/null || true
-cp -rn "$REPO_DIR"/automation/* "$LABS_DIR/automation/" 2>/dev/null || true
+# Topologies get SYNCED, not just seeded. `cp -n` (the old behaviour) never
+# updates an existing file, so a `git pull` that fixed a topology left the
+# ~/labs copy stale forever — and since 02-deploy-lab.sh defaults to the
+# ~/labs copy, you'd keep deploying the old one while reading the fixed one.
+#
+# Overwriting blindly would throw away local edits, so track what we install
+# in a manifest: if the local file still matches what we last put there, it's
+# ours to update; if it's been edited, leave it alone and say so.
+bash "$REPO_DIR/scripts/sync-labs.sh"
 echo "Working tree ready at $LABS_DIR"
 
 # ---------------------------------------------------------------------------

@@ -4,15 +4,21 @@
 # actually work together before building anything bigger. Deploy with:
 #   ./scripts/02-deploy-lab.sh
 #
-# If you imported the cEOS tarball under a different tag than shown below,
-# update the `image:` line to match (check with `docker images`).
+# The image is `ceos:latest`, not a pinned version, on purpose: everyone
+# downloads their own cEOS build from Arista, so the exact version differs
+# per person. 01-import-ceos.sh tags whatever you import as BOTH
+# ceos:<version> and ceos:latest, so this file works regardless of which
+# release you have — `docker images` still shows the real version.
+#
+# To pin a specific build instead, put ceos:<version> here; 02-deploy-lab.sh
+# checks the image exists locally before deploying either way.
 
 name: testlab
 
 topology:
   kinds:
     ceos:
-      image: ceos:4.35.3F
+      image: ceos:latest
   nodes:
     spine1:
       kind: ceos

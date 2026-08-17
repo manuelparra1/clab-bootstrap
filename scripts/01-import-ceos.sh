@@ -56,7 +56,15 @@ else
   docker import "$TARBALL" "$IMAGE_TAG"
 fi
 
+# Also publish a stable alias. The topologies reference ceos:latest so they
+# work with whatever version you personally downloaded — without this, every
+# new cEOS release would mean hand-editing every topology file, and getting it
+# wrong makes containerlab try to pull `ceos` from Docker Hub (where it does
+# not exist) and fail with a misleading "pull access denied".
+echo "==> Tagging ${IMAGE_TAG} as ceos:latest (the tag topologies reference)"
+docker tag "$IMAGE_TAG" ceos:latest
+
 echo
 echo "Done. Verify with: docker images | grep ceos"
-echo "If you used a non-default tag, update the 'image:' field in your"
-echo "topology YAML (topologies/testlab.clab.yml) to match: ${IMAGE_TAG}"
+echo "Imported as: ${IMAGE_TAG}  (also tagged ceos:latest)"
+echo "Topologies use ceos:latest, so they'll pick this up automatically."

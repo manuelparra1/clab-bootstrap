@@ -47,7 +47,14 @@ trap _on_err ERR
 # bookworm as well as trixie. Override by exporting DOCKER_CODENAME=bookworm.
 # If Docker hasn't cut packages for this release yet, the install step below
 # retries against bookworm on its own.
-DOCKER_CODENAME="${DOCKER_CODENAME:-$( . /etc/os-release 2>/dev/null && echo "${VERSION_CODENAME:-}" )}"
+# Subshell, and the `echo` is unconditional: sourcing a missing /etc/os-release
+# inside `$( ... && ... )` makes the whole substitution non-zero, which under
+# `set -e` aborts the script on what should be a soft detection step.
+detect_codename() {
+  [[ -r /etc/os-release ]] || return 0
+  ( . /etc/os-release 2>/dev/null; echo "${VERSION_CODENAME:-}" )
+}
+DOCKER_CODENAME="${DOCKER_CODENAME:-$(detect_codename)}"
 DOCKER_CODENAME="${DOCKER_CODENAME:-bookworm}"
 
 # $USER isn't always set in non-login/non-interactive shells (e.g. when this
@@ -60,6 +67,33 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 log()  { printf '\n\033[1;32m==>\033[0m %s\n' "$1"; }
 warn() { printf '\n\033[1;33m!!\033[0m %s\n' "$1"; }
+
+# All apt goes through here.
+#   DEBIAN_FRONTEND=noninteractive — a debconf prompt would render underneath
+#     the caller's progress line where nobody can see it, and wait forever.
+#     Same invisible-hang class as an unprimed sudo password prompt.
+#   -q (not -qq) — -qq silences apt completely, which is what made "Installing
+#     base packages" sit there for minutes with nothing to show. -q keeps the
+#     Get:/Unpacking/Setting up lines that make progress legible.
+apt_get() { sudo DEBIAN_FRONTEND=noninteractive apt-get -q "$@"; }
+
+# Add $WORK_USER to a group only if the group exists and they aren't in it.
+# Sets GROUPS_CHANGED so the caller can tell the user to re-login only when
+# something actually changed.
+GROUPS_CHANGED=0
+add_user_to_group() {
+  local grp="$1"
+  if ! getent group "$grp" >/dev/null 2>&1; then
+    return 1
+  fi
+  if id -nG "$WORK_USER" 2>/dev/null | tr ' ' '\n' | grep -qx "$grp"; then
+    echo "$WORK_USER is already in the '$grp' group."
+    return 0
+  fi
+  sudo usermod -aG "$grp" "$WORK_USER"
+  echo "Added $WORK_USER to the '$grp' group (takes effect on next login)."
+  GROUPS_CHANGED=1
+}
 
 if [[ $EUID -eq 0 ]]; then
   echo "Run this as your normal user (it calls sudo itself), not as root." >&2
@@ -130,19 +164,43 @@ fi
 # deb.debian.org URL. So don't pattern-match URLs; just ask whether ANY
 # non-cdrom source is configured in either format. Getting this wrong means
 # adding duplicate repos, which makes apt warn on every subsequent run.
+#
+# Takes an optional path to ignore, so we can ask "are there Debian sources
+# OTHER than the file we ourselves added?" — which is how the duplicate
+# cleanup below decides whether our file is still needed.
 has_apt_sources() {
+  local exclude="${1:-}" f
+  shopt -s nullglob
   # Old format: any uncommented "deb " line that isn't a cdrom
-  if grep -rhs '^[[:space:]]*deb[[:space:]]' \
-       /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null \
-       | grep -qv 'cdrom:'; then
-    return 0
-  fi
+  for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do
+    [[ -f "$f" ]] || continue
+    [[ -n "$exclude" && "$f" == "$exclude" ]] && continue
+    if grep -hs '^[[:space:]]*deb[[:space:]]' "$f" 2>/dev/null | grep -qv 'cdrom:'; then
+      shopt -u nullglob; return 0
+    fi
+  done
   # deb822 format: any URIs: line in a .sources file
-  if grep -rqs '^[[:space:]]*URIs:' /etc/apt/sources.list.d/*.sources 2>/dev/null; then
-    return 0
-  fi
+  for f in /etc/apt/sources.list.d/*.sources; do
+    [[ -f "$f" ]] || continue
+    [[ -n "$exclude" && "$f" == "$exclude" ]] && continue
+    if grep -qs '^[[:space:]]*URIs:' "$f"; then
+      shopt -u nullglob; return 0
+    fi
+  done
+  shopt -u nullglob
   return 1
 }
+
+# An earlier run could add trixie.list at a moment when the stock sources
+# looked absent. Once both exist, apt prints a "configured multiple times"
+# warning for every duplicated target on every single run. Ours is the
+# redundant one — retire it (renamed, not deleted, so it's recoverable).
+OUR_LIST=/etc/apt/sources.list.d/trixie.list
+if [[ -f "$OUR_LIST" ]] && has_apt_sources "$OUR_LIST"; then
+  echo "Debian repos are configured elsewhere too — retiring our redundant"
+  echo "$OUR_LIST (moved to $OUR_LIST.disabled) to stop apt's duplicate warnings."
+  sudo mv "$OUR_LIST" "$OUR_LIST.disabled"
+fi
 
 if has_apt_sources; then
   echo "Debian repos already configured — leaving apt sources alone."
@@ -158,7 +216,7 @@ fi
 # failing third-party repo (charm, docker) is the most common reason it does.
 # -q keeps it tidy without gagging apt.
 log "Updating apt package lists"
-if ! sudo apt-get update -q; then
+if ! apt_get update; then
   warn "apt-get update failed."
   warn "Usual cause: a third-party repo in /etc/apt/sources.list.d/ is"
   warn "unreachable, unsigned, or has no packages for this Debian release."
@@ -173,13 +231,13 @@ fi
 # 3. Base packages
 # ---------------------------------------------------------------------------
 log "Installing base packages"
-sudo apt-get install -y -qq \
+apt_get install -y \
   ca-certificates curl gnupg \
   ifupdown openssh-server sudo tmux pv \
   git python3-venv python3-pip \
   jq
 
-sudo usermod -aG sudo "$WORK_USER" || true
+add_user_to_group sudo || warn "No 'sudo' group on this system; skipping."
 
 # ---------------------------------------------------------------------------
 # 4. Docker
@@ -203,13 +261,13 @@ else
   # Docker sometimes lags a fresh Debian release. If this codename has no
   # packages, fall back to bookworm — the binaries are compatible and this is
   # the workaround the original Trixie build needed.
-  if ! sudo apt-get update -qq 2>/dev/null \
-     || ! sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+  if ! apt_get update 2>/dev/null \
+     || ! apt_get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
     if [[ "$DOCKER_CODENAME" != "bookworm" ]]; then
       warn "No Docker packages for '${DOCKER_CODENAME}' — retrying with bookworm."
       write_docker_list bookworm
-      sudo apt-get update -qq
-      if ! sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
+      apt_get update
+      if ! apt_get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin; then
         warn "Docker install failed against both '${DOCKER_CODENAME}' and bookworm."
         warn "Check https://download.docker.com/linux/debian/dists/ for what's published."
         exit 1
@@ -222,22 +280,42 @@ else
   fi
 fi
 
-sudo usermod -aG docker "$WORK_USER"
+add_user_to_group docker || warn "No 'docker' group found after install."
+
+# Installed but not running is its own failure mode — a VM cloned from a
+# template, or a package installed while systemd was masked, leaves a docker
+# binary that errors on every call. Checking beats assuming.
+if command -v systemctl >/dev/null 2>&1; then
+  if sudo systemctl is-active --quiet docker; then
+    echo "Docker service is running."
+  else
+    echo "Docker service isn't running — enabling and starting it."
+    sudo systemctl enable --now docker
+  fi
+fi
+
+if ! sudo docker info >/dev/null 2>&1; then
+  warn "Docker is installed but 'docker info' fails even under sudo."
+  warn "Check: sudo systemctl status docker  and  sudo journalctl -u docker -n 50"
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # 5. Containerlab
 # ---------------------------------------------------------------------------
 log "Installing Containerlab"
 if command -v containerlab >/dev/null 2>&1; then
-  echo "Containerlab already installed ($(containerlab version 2>/dev/null | head -1)), skipping."
+  # `containerlab version` leads with a blank line and an ASCII banner, so
+  # head -1 yields "". Grab the first line that actually names a version.
+  CLAB_VER="$(containerlab version 2>/dev/null | grep -im1 'version:' | tr -s ' ')"
+  CLAB_VER="${CLAB_VER:-version unknown}"
+  echo "Containerlab already installed (${CLAB_VER}), skipping."
 else
   bash -c "$(curl -sL https://get.containerlab.dev)"
 fi
 
 # clab_admins group is created by the containerlab .deb postinst
-if getent group clab_admins >/dev/null 2>&1; then
-  sudo usermod -aG clab_admins "$WORK_USER"
-else
+if ! add_user_to_group clab_admins; then
   warn "clab_admins group not found — containerlab install may need review."
 fi
 
@@ -273,9 +351,33 @@ elif ! command -v uv >/dev/null 2>&1; then
   fi
 fi
 
+# A venv is "usable" if it has an activate script. A directory that exists but
+# lacks one is a half-built venv from an interrupted run — rebuild rather than
+# reuse, or the `source` below fails with something far less obvious.
+venv_is_usable() { [[ -f "$VENV_DIR/bin/activate" ]]; }
+
 if [[ "${CLAB_FORCE_PIP:-0}" != "1" ]] && command -v uv >/dev/null 2>&1; then
   echo "Using uv ($(uv --version))."
-  uv venv "$VENV_DIR" --python 3.12 2>/dev/null || uv venv "$VENV_DIR"
+
+  # `uv venv` errors out if the target already exists, so check first. The old
+  # code paired `--python 3.12` with a bare `|| uv venv "$VENV_DIR"` fallback
+  # meant for "3.12 isn't available" — but it swallowed every other failure
+  # too, then retried the identical command and failed the same way. That made
+  # the second run of this supposedly re-runnable script fail every time.
+  if venv_is_usable; then
+    echo "Reusing the existing venv at $VENV_DIR."
+  else
+    venv_flags=()
+    [[ -d "$VENV_DIR" ]] && {
+      echo "Incomplete venv at $VENV_DIR — rebuilding it."
+      venv_flags=(--clear)
+    }
+    if ! uv venv "${venv_flags[@]+"${venv_flags[@]}"}" --python 3.12 "$VENV_DIR"; then
+      echo "Python 3.12 unavailable to uv — using its default interpreter."
+      uv venv "${venv_flags[@]+"${venv_flags[@]}"}" "$VENV_DIR"
+    fi
+  fi
+
   # shellcheck disable=SC1090
   source "$VENV_DIR/bin/activate"
   uv pip install --quiet -r "$REPO_DIR/automation/requirements.txt"
@@ -285,8 +387,11 @@ if [[ "${CLAB_FORCE_PIP:-0}" != "1" ]] && command -v uv >/dev/null 2>&1; then
   echo " and run: cd automation && uv sync)"
 else
   echo "Using python3 -m venv + pip (uv unavailable)."
-  if [[ ! -d "$VENV_DIR" ]]; then
-    python3 -m venv "$VENV_DIR"
+  if venv_is_usable; then
+    echo "Reusing the existing venv at $VENV_DIR."
+  else
+    # --clear is a no-op on a fresh path and cleans out a half-built one.
+    python3 -m venv --clear "$VENV_DIR"
   fi
   # shellcheck disable=SC1090
   source "$VENV_DIR/bin/activate"

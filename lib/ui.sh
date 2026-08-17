@@ -132,13 +132,31 @@ UI_LOG="${UI_LOG:-/tmp/clab-setup.log}"
 # reads from /dev/tty, which no stdout redirection captures. Call
 # ui_ensure_sudo first so the credential cache is already warm.
 #
-# CLAB_VERBOSE=1 skips the spinner and streams output live. Reach for it when
-# a step fails and you need to watch it happen.
-ui_spin() {
+# Output modes:
+#   default        one live status line — spinner, elapsed time, and the most
+#                  recent line of output, redrawn in place. You can always see
+#                  what the step is actually doing.
+#   CLAB_VERBOSE=1 stream everything unfiltered, no status line
+#   CLAB_QUIET=1   title only, no per-line detail
+# Full output goes to $UI_LOG in every mode.
+
+# ui_dump_log — shown after a failure so the error is on screen, not just in a
+# file the user has to go find.
+ui_dump_log() {
+  ui_info "Last 40 lines of $UI_LOG:"
+  echo >&2
+  tail -n 40 "$UI_LOG" >&2
+  echo >&2
+  ui_info "Full log: $UI_LOG"
+}
+
+# ui_run "Title" cmd... — run cmd with live, non-guessy progress.
+ui_run() {
   local title="$1"; shift
 
-  printf '\n===== %s =====\n' "$title" >>"$UI_LOG"
+  printf '\n===== %s (%s) =====\n' "$title" "$(date '+%H:%M:%S')" >>"$UI_LOG"
 
+  # Verbose: no status line at all, just the raw stream.
   if [[ "${CLAB_VERBOSE:-0}" == "1" ]]; then
     ui_step "$title"
     if "$@" </dev/null 2>&1 | tee -a "$UI_LOG"; then
@@ -149,36 +167,82 @@ ui_spin() {
     return 1
   fi
 
-  local frames='⣾⣽⣻⢿⡿⣟⣯⣷'
-  "$@" </dev/null >>"$UI_LOG" 2>&1 &
-  local pid=$!
-  local i=0
-  # Only animate on an interactive TTY; in a pipe/CI just print the title.
-  if [[ -t 1 ]]; then
-    while kill -0 "$pid" 2>/dev/null; do
-      i=$(( (i + 1) % 8 ))
-      printf '\r  %s %s' "${frames:$i:1}" "$title"
-      sleep 0.1
-    done
-    printf '\r\033[K'
-  else
+  # No TTY (piped, CI): a redrawn line would be garbage, so append plainly.
+  if [[ ! -t 1 ]]; then
     echo "  ... $title"
+    if "$@" </dev/null >>"$UI_LOG" 2>&1; then
+      ui_ok "$title"
+      return 0
+    fi
+    ui_err "$title — failed"
+    ui_dump_log
+    return 1
   fi
 
-  if wait "$pid"; then
-    ui_ok "$title"
+  local frames='⣾⣽⣻⢿⡿⣟⣯⣷'
+  local start=$SECONDS
+  local cols; cols="$(tput cols 2>/dev/null || echo 80)"
+  local quiet="${CLAB_QUIET:-0}"
+
+  # The command writes to the log; we follow the log. Deliberately NOT built on
+  # `read -t` for the redraw heartbeat: bash 3.2 returns 1 on read timeout
+  # while bash 5.x returns 142, so a timeout is indistinguishable from EOF
+  # across versions and the loop exits on the first silent second. Driving the
+  # loop from `sleep` instead makes the clock advance no matter how quiet the
+  # command is — which is the whole point: a step that prints nothing for two
+  # minutes still visibly ticks rather than looking wedged.
+  #
+  # fd 9 stays open across iterations, so its file position marks how far we've
+  # read. Drain whatever's already in the log before starting, so we show this
+  # step's output and not the tail of the previous one.
+  exec 9<"$UI_LOG"
+  while IFS= read -r -u 9 _drain; do :; done
+
+  "$@" </dev/null >>"$UI_LOG" 2>&1 &
+  local pid=$!
+
+  local last="" i=0 elapsed status detail avail l
+  while kill -0 "$pid" 2>/dev/null; do
+    while IFS= read -r -u 9 l; do
+      l="${l//$'\r'/ }"                       # CRs would smear the status line
+      [[ -n "${l// /}" ]] && last="$l"
+    done
+    i=$(( (i + 1) % 8 ))
+    elapsed=$(( SECONDS - start ))
+    status="$(printf '  %s %s  %d:%02d' \
+      "${frames:$i:1}" "$title" $(( elapsed / 60 )) $(( elapsed % 60 )))"
+    if [[ "$quiet" != "1" && -n "$last" ]]; then
+      avail=$(( cols - ${#status} - 4 ))
+      if (( avail > 12 )); then
+        detail="$last"
+        (( ${#detail} > avail )) && detail="${detail:0:avail-1}…"
+        status="$status  ${_C_GREY}${detail}${_C_RESET}"
+      fi
+    fi
+    printf '\r\033[K%s' "$status"
+    sleep 0.2
+  done
+  printf '\r\033[K'
+  exec 9<&-
+
+  local rc=0
+  wait "$pid" || rc=$?
+  local elapsed=$(( SECONDS - start ))
+
+  if (( rc == 0 )); then
+    ui_ok "$(printf '%s  (%d:%02d)' "$title" $(( elapsed / 60 )) $(( elapsed % 60 )))"
     return 0
   fi
 
-  ui_err "$title — failed"
-  ui_info "Last 40 lines of $UI_LOG:"
-  echo >&2
-  tail -n 40 "$UI_LOG" >&2
-  echo >&2
+  ui_err "$title — failed (exit $rc)"
+  ui_dump_log
   ui_info "To watch this step run live instead:"
   ui_info "  CLAB_VERBOSE=1 ./setup.sh"
   return 1
 }
+
+# Back-compat: ui_spin was the old name.
+ui_spin() { ui_run "$@"; }
 
 # ---------------------------------------------------------------------------
 # Input primitives
@@ -395,11 +459,11 @@ ui_ensure_base_deps() {
   fi
 
   ui_step "Installing prerequisites: ${missing[*]}"
-  if ! sudo apt-get update -qq; then
+  if ! sudo apt-get update -q; then
     ui_err "apt-get update failed — check network and /etc/apt/sources.list.d/."
     return 1
   fi
-  if ! sudo apt-get install -y -qq "${missing[@]}"; then
+  if ! sudo apt-get install -y -q "${missing[@]}"; then
     ui_err "Couldn't install: ${missing[*]}"
     return 1
   fi
@@ -462,7 +526,7 @@ ui_install_gum() {
   echo "deb [signed-by=$keyring] https://repo.charm.sh/apt/ * *" \
     | sudo tee "$listfile" >/dev/null
 
-  if ! sudo apt-get update -qq || ! sudo apt-get install -y -qq gum; then
+  if ! sudo apt-get update -q || ! sudo apt-get install -y -q gum; then
     # Leave apt exactly as we found it rather than wedged.
     sudo rm -f "$listfile"
     echo "gum install failed — removed $listfile so apt keeps working." >&2

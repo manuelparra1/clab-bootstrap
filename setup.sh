@@ -103,12 +103,63 @@ fi
 # ---------------------------------------------------------------------------
 ui_header "Step 1 of 4 — Base system"
 
+# Survey what's actually present before deciding anything. "Installed" isn't
+# one bit: docker can be installed but dead, a venv can exist but be half
+# built. Report each component's real state and let that drive the run, so a
+# re-run does only what's still missing.
+VENV_DIR="$HOME/.venvs/netauto"
+
+ui_step "Checking what's already in place"
+
+DOCKER_OK=1; DOCKER_WHY="not installed"
+if command -v docker >/dev/null 2>&1; then
+  if sudo docker info >/dev/null 2>&1; then
+    DOCKER_OK=0; DOCKER_WHY="$(docker --version 2>/dev/null || echo installed)"
+  else
+    DOCKER_WHY="installed, but the daemon isn't responding"
+  fi
+fi
+
+CLAB_OK=1; CLAB_WHY="not installed"
+if command -v containerlab >/dev/null 2>&1; then
+  CLAB_OK=0
+  CLAB_WHY="$(containerlab version 2>/dev/null | grep -im1 'version:' | tr -s ' ')"
+  CLAB_WHY="${CLAB_WHY:-installed}"
+fi
+
+VENV_OK=1; VENV_WHY="not created"
+if [[ -f "$VENV_DIR/bin/activate" ]]; then
+  if [[ -x "$VENV_DIR/bin/ansible-galaxy" ]]; then
+    VENV_OK=0; VENV_WHY="$VENV_DIR"
+  else
+    VENV_WHY="exists but incomplete — will be rebuilt"
+  fi
+elif [[ -d "$VENV_DIR" ]]; then
+  VENV_WHY="half-built — will be rebuilt"
+fi
+
+CEOS_OK=1; CEOS_WHY="not imported"
+if sudo docker images 2>/dev/null | grep -q '^ceos '; then
+  CEOS_OK=0
+  CEOS_WHY="$(sudo docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep '^ceos:' | head -1)"
+fi
+
+report() { if [[ "$2" == "0" ]]; then ui_ok "$(printf '%-14s %s' "$1" "$3")"
+           else ui_warn "$(printf '%-14s %s' "$1" "$3")"; fi; }
+report "Docker"       "$DOCKER_OK" "$DOCKER_WHY"
+report "Containerlab" "$CLAB_OK"   "$CLAB_WHY"
+report "Python venv"  "$VENV_OK"   "$VENV_WHY"
+report "cEOS image"   "$CEOS_OK"   "$CEOS_WHY"
+echo
+
 NEED_BOOTSTRAP=yes
-if command -v docker >/dev/null 2>&1 && command -v containerlab >/dev/null 2>&1; then
-  ui_ok "Docker and Containerlab are already installed"
+if (( DOCKER_OK == 0 && CLAB_OK == 0 && VENV_OK == 0 )); then
+  ui_ok "Base system is complete — nothing to install."
   if ! ui_confirm "Re-run the bootstrap anyway (safe, just slower)?" default_no; then
     NEED_BOOTSTRAP=no
   fi
+else
+  ui_info "The bootstrap will fill in what's missing above and skip the rest."
 fi
 
 if [[ "$NEED_BOOTSTRAP" == "yes" ]]; then
@@ -135,9 +186,21 @@ automatically. Either way you end up with the same venv."
     exit 1
   fi
 
-  ui_warn "Group membership changed (docker, clab_admins)."
-  ui_info "Those take effect in a NEW login shell. This script will keep"
-  ui_info "working via sudo, but log out and back in when it's done."
+  # Only nag about re-login if this shell is genuinely missing the groups.
+  MISSING_GROUPS=()
+  for g in docker clab_admins; do
+    if getent group "$g" >/dev/null 2>&1 \
+       && ! id -nG 2>/dev/null | tr ' ' '\n' | grep -qx "$g"; then
+      MISSING_GROUPS+=("$g")
+    fi
+  done
+  if [[ ${#MISSING_GROUPS[@]} -gt 0 ]]; then
+    ui_warn "Not in these groups yet in THIS shell: ${MISSING_GROUPS[*]}"
+    ui_info "They take effect in a NEW login shell. Setup keeps working via"
+    ui_info "sudo, but log out and back in when it's done."
+  else
+    ui_ok "Group memberships already active in this shell"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -326,14 +389,14 @@ never rely on that, and these are three tools worth knowing:
       ui_info "Edit it, then run scripts via: ./run-with-env.sh python3 02_nornir_scale.py"
       ;;
     pass*)
-      if ui_spin "Installing pass and gnupg" sudo apt-get install -y -qq pass gnupg; then
+      if ui_spin "Installing pass and gnupg" sudo apt-get install -y -q pass gnupg; then
         ui_ok "Installed"
       fi
       ui_info "Next: create a GPG key, then 'pass init <key-id>'."
       ui_info "Full steps: automation/nornir/SECRETS.md (Option B)"
       ;;
     sops*)
-      if ui_spin "Installing age" sudo apt-get install -y -qq age; then
+      if ui_spin "Installing age" sudo apt-get install -y -q age; then
         ui_ok "age installed"
       fi
       ui_info "sops has no Debian package — install the .deb from GitHub releases."

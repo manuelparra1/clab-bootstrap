@@ -69,7 +69,21 @@ chmod +x setup.sh scripts/*.sh
 ./setup.sh
 ```
 
-That's it. `setup.sh` walks through everything below interactively: installing Docker/Containerlab/Python tooling, importing the cEOS image, deploying a test topology, and picking an automation path. It's safe to re-run — already-done steps are detected and skipped, so it doubles as the update path after a `git pull`.
+That's it. `setup.sh` walks through everything below interactively: installing Docker/Containerlab/Python tooling, importing the cEOS image, deploying a test topology, and picking an automation path.
+
+**Re-running is the normal case.** Every step checks real state before acting, so a second run is a no-op and a third is identical to the second. It's the update path after a `git pull`, and the repair path after a run that died halfway — it detects and rebuilds a half-built venv, restarts a stopped Docker daemon, and disables apt repos whose signing key went missing. Setup opens with a survey of what's already in place so you can see what it intends to do before it does it.
+
+### Watching it work
+
+Long steps show a live status line: spinner, elapsed time, and the most recent line of output, redrawn in place. The clock keeps ticking even when a command is silent, so a slow step never looks like a hung one.
+
+| | |
+| --- | --- |
+| `./setup.sh` | default — one live status line per step |
+| `CLAB_VERBOSE=1 ./setup.sh` | stream every command's full output; use when a step fails |
+| `CLAB_QUIET=1 ./setup.sh` | step titles and timings only, no per-line detail |
+
+Full output always lands in `/tmp/clab-setup.log` regardless of mode, and the last 40 lines are printed automatically if a step fails.
 
 **Prefer to drive manually?** Everything `setup.sh` does is just the numbered scripts, runnable directly:
 

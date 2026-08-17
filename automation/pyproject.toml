@@ -1,0 +1,31 @@
+[project]
+name = "clab-automation"
+version = "0.1.0"
+description = "Network automation tooling for the containerlab sandbox (Nornir/NAPALM/Netmiko + optional Ansible)"
+requires-python = ">=3.11"
+dependencies = [
+    "ansible-core>=2.17",
+    "netmiko>=4.4",
+    "napalm>=5.0",
+    "nornir>=3.4",
+    "nornir-netmiko>=1.0",
+    "nornir-napalm>=0.5",
+    "nornir-utils>=0.2",
+    "nornir-jinja2>=0.2",
+    "pyeapi>=1.0",
+]
+
+# requirements.txt (same deps, hand-kept in sync) exists alongside this file
+# purely as a pip-only fallback for boxes where installing uv itself isn't
+# an option. If you're using uv, this file — not requirements.txt — is the
+# source of truth:
+#
+#   cd automation
+#   uv sync              # creates .venv/ here, resolves + writes uv.lock
+#   uv run python3 nornir/02_nornir_scale.py
+#
+# scripts/00-bootstrap.sh instead builds the venv at ~/.venvs/netauto via
+# `uv pip install -r requirements.txt` so its location matches the plain
+# pip fallback path exactly — either way `netauto` activates the same venv
+# layout. Reach for `uv sync` here directly if you'd rather work in full
+# uv-project mode (lockfile, `uv run`, `uv add` for new deps) instead.

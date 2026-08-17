@@ -1,0 +1,30 @@
+# Minimal 2-node back-to-back cEOS topology.
+#
+# Purpose: confirm Docker + Containerlab + the imported cEOS image all
+# actually work together before building anything bigger. Deploy with:
+#   ./scripts/02-deploy-lab.sh
+#
+# If you imported the cEOS tarball under a different tag than shown below,
+# update the `image:` line to match (check with `docker images`).
+
+name: testlab
+
+topology:
+  kinds:
+    ceos:
+      image: ceos:4.35.3F
+  nodes:
+    spine1:
+      kind: ceos
+    spine2:
+      kind: ceos
+
+  links:
+    - endpoints: ["spine1:eth1", "spine2:eth1"]
+
+# Once this comes up clean (both nodes 'running', LLDP sees each other on
+# Et1), a natural next step matching the ring/ISP-style topology from the
+# team's design notes is 5 backbone routers + 1 edge router, with a shared
+# multi-access segment (via a `bridge` kind node, since containerlab has no
+# native "unmanaged switch") plus point-to-point ring links for the OSPF
+# underlay. Copy this file, rename it, and expand from there.

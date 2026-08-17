@@ -1,0 +1,21 @@
+---
+# Nornir config. Points at the SimpleInventory file that
+# automation/link-inventory.sh symlinks in from containerlab's
+# auto-generated nornir-simple-inventory.yml.
+#
+# Note: scripts/02-deploy-lab.sh sets CLAB_NORNIR_PLATFORM_NAME_SCHEMA=napalm
+# before deploying, so the generated inventory labels cEOS nodes with the
+# NAPALM driver name "eos" (instead of the raw kind "ceos"), which
+# nornir-napalm expects in the `platform` field.
+
+inventory:
+  plugin: SimpleInventory
+  options:
+    host_file: "nornir-simple-inventory.yml"
+    group_file: ""
+    defaults_file: ""
+
+runner:
+  plugin: threaded
+  options:
+    num_workers: 10

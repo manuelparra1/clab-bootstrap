@@ -1,0 +1,24 @@
+---
+# Smoke-test playbook: connects to every node in the "ceos" group (as
+# defined by containerlab's auto-generated inventory) and prints basic
+# facts. Good first thing to run after linking a fresh inventory to prove
+# Ansible can actually reach the lab.
+#
+# Run from automation/ansible/:
+#   ansible-playbook playbooks/gather_facts.yml
+#
+- name: Gather facts from all cEOS lab nodes
+  hosts: ceos
+  gather_facts: false
+  tasks:
+    - name: Collect EOS facts
+      arista.eos.eos_facts:
+      register: facts
+
+    - name: Show hostname, version, and interfaces
+      debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "Model: {{ facts.ansible_facts.ansible_net_model }}"
+          - "Version: {{ facts.ansible_facts.ansible_net_version }}"
+          - "Interfaces: {{ facts.ansible_facts.ansible_net_interfaces.keys() | list }}"

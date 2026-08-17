@@ -1,0 +1,6 @@
+---
+# Install with:
+#   ansible-galaxy collection install -r automation/ansible/requirements.yml
+collections:
+  - name: arista.eos
+  - name: ansible.netcommon

@@ -1,0 +1,16 @@
+---
+# Plaintext structure for the "ceos" group (containerlab's inventory groups
+# nodes by kind, and the group here is literally named "ceos"). Everything
+# non-secret lives here in the clear so `git diff` stays readable.
+#
+# The actual credential VALUES live in the sibling vault.yml, encrypted with
+# Ansible Vault — see group_vars/ceos/vault.yml.example for setup. Ansible
+# auto-loads and merges every file in a group_vars/<group>/ directory, so
+# vault_ceos_username / vault_ceos_password referenced below resolve once
+# vault.yml is decrypted at runtime.
+ansible_network_os: arista.eos.eos
+ansible_connection: ansible.netcommon.network_cli
+ansible_user: "{{ vault_ceos_username }}"
+ansible_password: "{{ vault_ceos_password }}"
+ansible_become: true
+ansible_become_method: enable

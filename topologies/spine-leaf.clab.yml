@@ -1,0 +1,43 @@
+# 2-spine / 2-leaf Clos fabric — the course topology.
+#
+#        spine1        spine2
+#        /    \        /    \
+#    eth1     eth2  eth1     eth2
+#      |         \  /          |
+#      |          \/           |
+#      |          /\           |
+#    eth1     eth2  eth1     eth2
+#        \    /        \    /
+#        leaf1          leaf2
+#
+# Every leaf connects to every spine — that's the whole idea of a Clos
+# fabric: any leaf-to-leaf path is exactly two hops, and adding capacity
+# means adding spines, not re-cabling.
+#
+# Deploy:   ./scripts/02-deploy-lab.sh topologies/spine-leaf.clab.yml
+# Destroy:  ./scripts/02-deploy-lab.sh topologies/spine-leaf.clab.yml destroy
+#
+# ~4 cEOS nodes x 0.5-1 GB RAM each. Destroy the testlab first if RAM is
+# tight. Update the image tag below if you imported a different version.
+
+name: spineleaf
+
+topology:
+  kinds:
+    ceos:
+      image: ceos:4.35.3F
+  nodes:
+    spine1:
+      kind: ceos
+    spine2:
+      kind: ceos
+    leaf1:
+      kind: ceos
+    leaf2:
+      kind: ceos
+
+  links:
+    - endpoints: ["spine1:eth1", "leaf1:eth1"]
+    - endpoints: ["spine1:eth2", "leaf2:eth1"]
+    - endpoints: ["spine2:eth1", "leaf1:eth2"]
+    - endpoints: ["spine2:eth2", "leaf2:eth2"]

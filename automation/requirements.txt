@@ -1,0 +1,20 @@
+# Network automation toolchain for the containerlab sandbox.
+#
+# PIP FALLBACK ONLY. If you have `uv` (recommended — see scripts/00-bootstrap.sh
+# and automation/pyproject.toml), that's the faster path and this file isn't
+# the source of truth for it. This exists so the venv can still be built with
+# plain pip on a box where installing uv isn't an option; kept hand-in-sync
+# with pyproject.toml's [project.dependencies].
+#
+# Installed into an isolated venv by scripts/00-bootstrap.sh (~/.venvs/netauto).
+# Activate with:  netauto   (alias added to ~/.bashrc by the bootstrap script)
+
+ansible-core>=2.17
+netmiko>=4.4
+napalm>=5.0
+nornir>=3.4
+nornir-netmiko>=1.0
+nornir-napalm>=0.5
+nornir-utils>=0.2
+nornir-jinja2>=0.2  # templating for the idempotent-deploy demo
+pyeapi>=1.0        # Arista eAPI client, useful alongside/instead of SSH-based modules

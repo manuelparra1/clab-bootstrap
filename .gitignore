@@ -1,0 +1,41 @@
+# Per-lab artifacts containerlab generates on deploy — never commit these,
+# they contain live management IPs and are regenerated every deploy.
+clab-*/
+**/ansible-inventory.yml
+**/nornir-simple-inventory.yml
+automation/ansible/inventory.yml
+automation/nornir/nornir-simple-inventory.yml
+
+# cEOS images and download artifacts — too large for git, and
+# redistributing them violates Arista's EULA. Everyone downloads their own.
+*.tar.xz
+*.tar.xz.sha512sum
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local secrets overrides — never commit actual credential values
+.env
+automation/nornir/.env
+
+# Vault password files — NEVER commit the password that unlocks vault.yml,
+# only the encrypted vault.yml itself (that one's meant to be committed).
+vault_pass.txt
+*.vault_pass
+.vault_pass*
+
+# sops+age: the private key must never be in the repo (it normally lives at
+# ~/.config/sops/age/keys.txt, outside this tree, but guard against it
+# landing here by mistake). secrets.enc.yaml itself IS meant to be
+# committed — it's ciphertext for the values — but the plaintext working
+# copy before encryption is not.
+automation/nornir/secrets.yaml
+**/age-keys.txt
+**/keys.txt
+
+# uv
+automation/.venv/
+# Note: automation/uv.lock is NOT ignored — lockfiles are meant to be
+# committed so everyone (and CI) resolves the exact same dependency set.

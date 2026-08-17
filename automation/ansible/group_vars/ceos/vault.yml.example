@@ -1,0 +1,27 @@
+---
+# TEMPLATE — do not commit this file unencrypted with real values.
+#
+# One-time setup:
+#   1. cp vault.yml.example vault.yml
+#   2. Edit vault.yml below with your actual lab credentials
+#   3. Encrypt it in place:
+#        cd automation/ansible/group_vars/ceos
+#        ansible-vault encrypt vault.yml
+#      You'll be prompted to set a NEW password — that's the "key
+#      password" that unlocks this file from now on. Don't lose it; there
+#      is no recovery without it.
+#   4. From then on, vault.yml is ciphertext and safe to commit to git.
+#
+# Day-to-day use:
+#   ansible-vault view vault.yml        # read it
+#   ansible-vault edit vault.yml        # edit in place (re-encrypts on save)
+#   ansible-vault rekey vault.yml       # change the vault password
+#
+# Running playbooks against an encrypted vault:
+#   ansible-playbook --ask-vault-pass playbooks/gather_facts.yml
+#
+# cEOS default credentials are admin/admin unless changed in your topology.
+# In a real production inventory this same pattern holds device/site
+# credentials, API tokens, TACACS+ secrets, etc. — never plaintext in git.
+vault_ceos_username: admin
+vault_ceos_password: admin

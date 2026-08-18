@@ -22,6 +22,40 @@ export UI_LOG="/tmp/clab-setup.log"
 : > "$UI_LOG"
 
 # ---------------------------------------------------------------------------
+# clab_whats_next — printed on EVERY exit path, successful or abandoned.
+#
+# The failure this fixes: answering "no" to an optional step used to end the
+# script silently, leaving you at a shell with a working lab and no idea what
+# to type. Nobody should have to Google `containerlab inspect` after running
+# a setup wizard that already knows the answer.
+# ---------------------------------------------------------------------------
+clab_whats_next() {
+  ui_header "What now?"
+  cat <<EOF
+  Drive the lab (run this any time — it's the day-to-day tool):
+
+      ./lab                 menu, if you'd rather not memorise verbs
+      ./lab status          what's running
+      ./lab deploy          bring the test lab up
+      ./lab ssh             log into a node   (user admin, password admin)
+      ./lab cli             EOS CLI without SSH — works when SSH doesn't
+      ./lab graph           topology diagram at http://${THIS_IP:-<VM-IP>}:50080
+      ./lab destroy         tear it down (cEOS nodes eat RAM)
+
+  Learn it properly — the course is the path, the README is the reference:
+
+      course/README.md                  the module list
+      course/02-containerlab-basics.md  <- you are here: the lab lifecycle
+      course/00-orientation.md          map of every file in this repo
+
+  Come back to ./setup.sh whenever you want the automation walkthrough;
+  it skips everything already done.
+
+  Setup log: $UI_LOG
+EOF
+}
+
+# ---------------------------------------------------------------------------
 # Preflight
 # ---------------------------------------------------------------------------
 if [[ $EUID -eq 0 ]]; then
@@ -308,6 +342,29 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Natural stopping point.
+#
+# The platform is built and a lab deploys — that's a complete, useful outcome
+# and the end of course module 01. Everything past here is optional extra.
+# Offer the exit explicitly, because "no" to the next prompt used to drop
+# people at a bare shell with no idea what to run.
+# ---------------------------------------------------------------------------
+ui_header "Platform ready"
+
+ui_note "The lab host is built and the test topology deploys. That's the
+milestone — everything after this is optional and re-runnable later.
+
+From here you can stop and drive the lab yourself, or keep going into the
+automation walkthrough. Either way nothing is lost: ./setup.sh picks up
+where you left off, and ./lab drives the lab day to day."
+
+if ! ui_confirm "Continue to the automation walkthrough now?"; then
+  ui_ok "Stopping here — the platform is fully set up."
+  clab_whats_next
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
 # Step 4: pick an automation path
 # ---------------------------------------------------------------------------
 ui_header "Step 4 of 4 — Automation"
@@ -421,22 +478,8 @@ fi
 # ---------------------------------------------------------------------------
 ui_header "Setup complete"
 
-cat <<OUTRO
-  What to do next:
+ui_ok "Platform built, lab deployed, automation tooling installed."
+ui_info "Log out and back in if you haven't yet (docker / clab_admins groups)."
+ui_info "Activate the Python env any time with:  netauto"
 
-    1. Log out and back in (group changes for docker / clab_admins)
-    2. Activate the Python environment any time with:   netauto
-    3. Try the automation demo:
-         cd automation/nornir && python3 02_nornir_scale.py
-    4. Tear the lab down when you're done (it eats RAM):
-         ./scripts/02-deploy-lab.sh topologies/testlab.clab.yml destroy
-
-  Docs:
-    README.md                      overview, tooling choices, troubleshooting
-    automation/nornir/README.md    the demo walkthrough
-    automation/nornir/SECRETS.md   secrets managers compared
-    docs/vcenter-vm-setup.md       how this VM was built (for the next person)
-
-  Setup log: $UI_LOG
-
-OUTRO
+clab_whats_next

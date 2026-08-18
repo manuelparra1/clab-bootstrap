@@ -145,6 +145,50 @@ To pin a specific version instead, set `image: ceos:<version>` in the topology �
 
 ---
 
+## Driving the lab
+
+**`./lab` is the day-to-day tool.** `setup.sh` builds the platform once; `./lab` is what you run every time after that. Run it bare for a menu, or give it a verb:
+
+```bash
+./lab                 # menu — pick from a list
+./lab status          # what's running right now
+./lab deploy          # bring the lab up
+./lab ssh             # log into a node (user admin, password admin)
+./lab cli             # EOS CLI without SSH — works when SSH doesn't
+./lab graph           # topology diagram in a browser
+./lab destroy         # tear it down (cEOS nodes eat RAM)
+./lab topo            # switch which topology the above act on
+./lab learn           # where to go next in the course
+```
+
+It remembers which topology you selected, so `./lab graph` after `./lab topo spine-leaf.clab.yml` does the right thing.
+
+`setup.sh` stops at a natural checkpoint once the test topology deploys and asks whether you want to continue into the automation walkthrough. Answering no is a normal, complete outcome — it prints the same "what now?" card and you carry on with `./lab`. Re-run `./setup.sh` whenever you want the rest; it skips everything already done.
+
+### The underlying script
+
+`./lab` wraps `02-deploy-lab.sh`, which you can also drive directly:
+
+```bash
+./scripts/02-deploy-lab.sh            # deploy the test topology (default)
+./scripts/02-deploy-lab.sh inspect    # what's running, and node IPs
+./scripts/02-deploy-lab.sh graph      # topology diagram in a browser
+./scripts/02-deploy-lab.sh destroy    # tear it down (cEOS nodes eat RAM)
+```
+
+The action can be the only argument, or you can name a topology first — `./scripts/02-deploy-lab.sh spine-leaf.clab.yml graph`. A bare filename is resolved against `~/labs/topologies/` and the repo's `topologies/`.
+
+`graph` starts containerlab's built-in web server on port **50080** and runs in the foreground until you Ctrl-C. It prints the VM's actual address, so over SSH just open the URL it gives you. Graphing reads the `.clab.yml` and doesn't require a running lab — deploying first only makes node state meaningful. If the page won't load from your laptop, check that nothing is filtering 50080 between you and the VM.
+
+To confirm the lab is up without the browser:
+
+```bash
+sudo containerlab inspect -t ~/labs/topologies/testlab.clab.yml
+docker ps --filter name=clab-testlab
+```
+
+---
+
 ## Two automation paths
 
 **Nornir / NAPALM / Netmiko (`automation/nornir/`) — start here.** Pure Python, no framework-specific YAML DSL to learn, no collections to install, and — specific to this lab — no credentials to set up at all, because containerlab already bakes cEOS's default `admin`/`admin` into its auto-generated inventory. The four scripts in there walk the same Netmiko → Nornir → NAPALM → idempotent-deploy progression as the team's automation course, just retargeted from GNS3 + a bastion-host VM onto this Containerlab topology. This is the version worth demoing to coworkers who haven't seen network automation before: the distance from "nothing installed" to "watch this self-heal a config drift" is about five minutes.

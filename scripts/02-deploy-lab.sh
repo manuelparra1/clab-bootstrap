@@ -1,17 +1,43 @@
 #!/usr/bin/env bash
 #
 # 02-deploy-lab.sh [topology-file] [deploy|destroy|inspect|graph]
+# 02-deploy-lab.sh [deploy|destroy|inspect|graph]
 #
 # Deploys (or destroys/inspects/graphs) a Containerlab topology. Defaults
 # to topologies/testlab.clab.yml and "deploy" if no arguments are given.
+#
+#   ./scripts/02-deploy-lab.sh                 deploy the test topology
+#   ./scripts/02-deploy-lab.sh graph           graph it
+#   ./scripts/02-deploy-lab.sh destroy         tear it down
+#   ./scripts/02-deploy-lab.sh spine-leaf.clab.yml graph
 #
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEFAULT_TOPO="$HOME/labs/topologies/testlab.clab.yml"
 [[ -f "$DEFAULT_TOPO" ]] || DEFAULT_TOPO="$REPO_DIR/topologies/testlab.clab.yml"
-TOPO="${1:-$DEFAULT_TOPO}"
-ACTION="${2:-deploy}"
+
+# Accept the action as the ONLY argument. Requiring the topology path first
+# just to run `graph` on the default lab is a papercut nobody should have to
+# remember: `02-deploy-lab.sh graph` is what everyone types first.
+case "${1:-}" in
+  deploy|destroy|inspect|graph)
+    ACTION="$1"
+    TOPO="$DEFAULT_TOPO"
+    ;;
+  *)
+    TOPO="${1:-$DEFAULT_TOPO}"
+    ACTION="${2:-deploy}"
+    ;;
+esac
+
+# A bare filename is resolved against the usual topology directories, so
+# `... spine-leaf.clab.yml graph` works from anywhere.
+if [[ ! -f "$TOPO" && "$TOPO" != */* ]]; then
+  for cand in "$HOME/labs/topologies/$TOPO" "$REPO_DIR/topologies/$TOPO"; do
+    [[ -f "$cand" ]] && { TOPO="$cand"; break; }
+  done
+fi
 
 if [[ ! -f "$TOPO" ]]; then
   echo "Topology file not found: $TOPO" >&2
@@ -129,7 +155,18 @@ case "$ACTION" in
     sudo containerlab inspect -t "$TOPO_FILE"
     ;;
   graph)
-    echo "==> Starting topology graph server — browse to http://<VM-IP>:50080"
+    # Print the real address rather than a <VM-IP> placeholder — you're
+    # usually reading this over SSH from another machine.
+    VM_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    VM_IP="${VM_IP:-<VM-IP>}"
+    echo "==> Topology graph server for $TOPO_FILE"
+    echo
+    echo "    Open:  http://${VM_IP}:50080"
+    echo
+    echo "    This runs in the foreground — Ctrl-C to stop it."
+    echo "    Nothing needs to be deployed to graph a topology; it reads the"
+    echo "    .clab.yml. A running lab just makes the node states meaningful."
+    echo
     sudo containerlab graph -t "$TOPO_FILE"
     ;;
   *)

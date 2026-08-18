@@ -1,0 +1,271 @@
+#!/usr/bin/env bash
+#
+# lab — the day-to-day driver for an already-built lab host.
+#
+# setup.sh builds the PLATFORM, once. This is what you run every day after
+# that: deploy, look at, log into, graph, and tear down topologies. It exists
+# because "I finished setup, now what?" had no answer that wasn't a Google
+# search for containerlab's CLI.
+#
+# Run with no arguments for a menu; run with a subcommand to skip it:
+#
+#   ./lab                 menu
+#   ./lab status          what's running
+#   ./lab deploy          deploy the current topology
+#   ./lab inspect         nodes, IPs, state
+#   ./lab graph           topology diagram in a browser
+#   ./lab ssh [node]      log into a node (admin/admin)
+#   ./lab cli [node]      EOS CLI without SSH (works when SSH is broken)
+#   ./lab destroy         tear the lab down
+#   ./lab topo [file]     choose which topology the above act on
+#   ./lab learn           where to go next in the course
+#
+# Everything here is a thin wrapper over containerlab. Module 02 of the course
+# teaches the raw commands on purpose — this is for after you know them.
+#
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/ui.sh
+source "$REPO_DIR/lib/ui.sh"
+
+LABS_TOPO_DIR="$HOME/labs/topologies"
+[[ -d "$LABS_TOPO_DIR" ]] || LABS_TOPO_DIR="$REPO_DIR/topologies"
+
+# Which topology the verbs act on. Remembered between runs so `./lab graph`
+# doesn't need the path every time.
+STATE_FILE="$HOME/.config/clab-bootstrap/current-topology"
+mkdir -p "$(dirname "$STATE_FILE")"
+
+current_topo() {
+  local t
+  if [[ -f "$STATE_FILE" ]]; then
+    t="$(cat "$STATE_FILE")"
+    [[ -f "$t" ]] && { echo "$t"; return; }
+  fi
+  echo "$LABS_TOPO_DIR/testlab.clab.yml"
+}
+
+set_topo() {
+  echo "$1" >"$STATE_FILE"
+  ui_ok "Now acting on: $(basename "$1")"
+}
+
+lab_name() { grep -m1 '^name:' "$1" 2>/dev/null | awk '{print $2}'; }
+
+# Containers for a given lab, as "name<TAB>status".
+lab_nodes() {
+  local name; name="$(lab_name "$(current_topo)")"
+  [[ -n "$name" ]] || return 0
+  sudo docker ps --filter "name=clab-${name}-" \
+    --format '{{.Names}}\t{{.Status}}' 2>/dev/null || true
+}
+
+node_names() { lab_nodes | awk -F'\t' '{print $1}'; }
+
+is_running() { [[ -n "$(node_names)" ]]; }
+
+# --------------------------------------------------------------------------
+# Verbs
+# --------------------------------------------------------------------------
+cmd_status() {
+  local topo name
+  topo="$(current_topo)"; name="$(lab_name "$topo")"
+  ui_step "Lab status"
+  ui_info "Topology: $topo"
+  if is_running; then
+    ui_ok "'$name' is running:"
+    lab_nodes | while IFS=$'\t' read -r n s; do ui_info "  $n  —  $s"; done
+    echo
+    ui_info "Log in:  ./lab ssh        Diagram:  ./lab graph"
+  else
+    ui_warn "'$name' is not running."
+    ui_info "Start it with:  ./lab deploy"
+  fi
+}
+
+cmd_deploy()  { bash "$REPO_DIR/scripts/02-deploy-lab.sh" "$(current_topo)" deploy; }
+cmd_inspect() { bash "$REPO_DIR/scripts/02-deploy-lab.sh" "$(current_topo)" inspect; }
+cmd_graph()   { bash "$REPO_DIR/scripts/02-deploy-lab.sh" "$(current_topo)" graph; }
+
+cmd_destroy() {
+  if ! is_running; then ui_warn "Nothing running to destroy."; return 0; fi
+  ui_warn "This stops the nodes. Configs you saved with 'write memory' survive"
+  ui_warn "in the lab directory and come back on the next deploy."
+  if ui_confirm "Destroy $(lab_name "$(current_topo)")?" default_no; then
+    bash "$REPO_DIR/scripts/02-deploy-lab.sh" "$(current_topo)" destroy
+  else
+    ui_info "Left running."
+  fi
+}
+
+# Pick a node, defaulting to the first, prompting only when ambiguous.
+pick_node() {
+  local want="${1:-}" names n count
+  names="$(node_names)"
+  if [[ -z "$names" ]]; then
+    ui_err "No nodes are running. Deploy first:  ./lab deploy" >&2
+    return 1
+  fi
+  if [[ -n "$want" ]]; then
+    # Accept both "spine1" and the full "clab-testlab-spine1".
+    while IFS= read -r n; do
+      [[ "$n" == "$want" || "$n" == *-"$want" ]] && { echo "$n"; return 0; }
+    done <<<"$names"
+    ui_err "No such node: $want" >&2
+    ui_info "Running nodes:" >&2
+    while IFS= read -r n; do ui_info "  $n" >&2; done <<<"$names"
+    return 1
+  fi
+  count="$(printf '%s\n' "$names" | wc -l | tr -d ' ')"
+  if [[ "$count" == "1" ]]; then printf '%s\n' "$names"; return 0; fi
+  # shellcheck disable=SC2046
+  ui_choose "Which node?" $(printf '%s ' $names)
+}
+
+cmd_ssh() {
+  local node; node="$(pick_node "${1:-}")" || return 1
+  ui_info "Logging into $node — username admin, password admin"
+  ui_info "(If SSH refuses, use:  ./lab cli ${1:-})"
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      admin@"$node" 2>/dev/null \
+    || ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+           admin@"$(sudo docker inspect -f \
+             '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$node")"
+}
+
+cmd_cli() {
+  local node; node="$(pick_node "${1:-}")" || return 1
+  ui_info "Opening the EOS CLI on $node (no password needed)"
+  sudo docker exec -it "$node" Cli
+}
+
+cmd_topo() {
+  local choice
+  if [[ -n "${1:-}" ]]; then
+    local t="$1"
+    [[ -f "$t" ]] || t="$LABS_TOPO_DIR/$1"
+    [[ -f "$t" ]] || { ui_err "No such topology: $1"; return 1; }
+    set_topo "$t"; return 0
+  fi
+  shopt -s nullglob
+  local files=("$LABS_TOPO_DIR"/*.clab.yml)
+  shopt -u nullglob
+  [[ ${#files[@]} -gt 0 ]] || { ui_err "No topologies in $LABS_TOPO_DIR"; return 1; }
+  choice="$(ui_choose "Which topology?" "${files[@]##*/}")"
+  set_topo "$LABS_TOPO_DIR/$choice"
+}
+
+cmd_learn() {
+  ui_header "Where to go next"
+  cat <<'EOF'
+  The course is the path; the README is the reference.
+
+    course/00-orientation.md   map of every file + "I want to change X" tree
+    course/02-containerlab-basics.md
+                               the lab lifecycle: deploy, inspect, log in,
+                               configure, save, destroy, restore
+    course/02a-seeing-the-topology.md
+                               graphing: mermaid, draw.io, the HTML viewer
+    course/03-spine-leaf.md    build a 4-node fabric, OSPF underlay BY HAND
+    course/04-automation.md    then let Nornir/NAPALM do the same job
+    course/05-vxlan-evpn.md    VXLAN/EVPN overlay + automation capstone
+    course/06-secrets.md       credential handling, four ways
+
+  You are here: the platform is built and the test lab deploys. That's the
+  end of module 01. Module 02 is the natural next hour.
+
+  Handy while you work:
+    ./lab status     ./lab ssh      ./lab graph     ./lab destroy
+EOF
+}
+
+cmd_automation() {
+  ui_header "Automation demos"
+  if ! is_running; then
+    ui_warn "These talk to live devices — deploy a lab first (./lab deploy)."
+    return 0
+  fi
+  ui_note "Run them in order; each one replaces the previous one's manual work.
+Run 04 twice — the second run changes nothing, which is the whole point."
+  local pick
+  pick="$(ui_choose "Which one?" \
+    "01_netmiko_hello.py    one device, one command" \
+    "02_nornir_scale.py     every device at once" \
+    "03_napalm_facts.py     structured data, not scraped text" \
+    "04_idempotent_deploy.py declarative config" \
+    "Just show me the directory")"
+  local script="${pick%% *}"
+  if [[ "$script" == "Just" ]]; then
+    ui_info "cd automation/nornir  — see its README.md for the walkthrough"
+    return 0
+  fi
+  ( cd "$REPO_DIR/automation/nornir" || exit 1
+    # shellcheck disable=SC1090
+    source "$HOME/.venvs/netauto/bin/activate" 2>/dev/null || true
+    python3 "$script" )
+}
+
+# --------------------------------------------------------------------------
+# Menu
+# --------------------------------------------------------------------------
+menu() {
+  local topo name choice
+  while true; do
+    topo="$(current_topo)"; name="$(lab_name "$topo")"
+    echo
+    ui_header "Lab — $name"
+    if is_running; then
+      ui_ok "running ($(node_names | wc -l | tr -d ' ') nodes)"
+    else
+      ui_warn "not deployed"
+    fi
+
+    choice="$(ui_choose "What would you like to do?" \
+      "status      what's running right now" \
+      "deploy      bring the lab up" \
+      "inspect     nodes, management IPs, state" \
+      "graph       topology diagram in a browser" \
+      "ssh         log into a node (admin/admin)" \
+      "cli         EOS CLI without SSH" \
+      "automation  run the Nornir demos" \
+      "topo        switch topology" \
+      "destroy     tear the lab down" \
+      "learn       what to read next" \
+      "quit")"
+
+    case "${choice%% *}" in
+      status) cmd_status ;;
+      deploy) cmd_deploy ;;
+      inspect) cmd_inspect ;;
+      graph) cmd_graph ;;
+      ssh) cmd_ssh || true ;;
+      cli) cmd_cli || true ;;
+      automation) cmd_automation || true ;;
+      topo) cmd_topo || true ;;
+      destroy) cmd_destroy ;;
+      learn) cmd_learn ;;
+      quit|*) ui_info "Bye. Re-run with ./lab any time."; return 0 ;;
+    esac
+  done
+}
+
+case "${1:-menu}" in
+  menu|"")   menu ;;
+  status)    cmd_status ;;
+  deploy)    cmd_deploy ;;
+  inspect)   cmd_inspect ;;
+  graph)     cmd_graph ;;
+  ssh)       shift; cmd_ssh "${1:-}" ;;
+  cli)       shift; cmd_cli "${1:-}" ;;
+  destroy)   cmd_destroy ;;
+  topo)      shift; cmd_topo "${1:-}" ;;
+  learn)     cmd_learn ;;
+  automation) cmd_automation ;;
+  -h|--help|help)
+    sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *)
+    ui_err "Unknown command: $1"
+    ui_info "Try: ./lab help"
+    exit 1 ;;
+esac

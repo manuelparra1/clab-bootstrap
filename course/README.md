@@ -33,6 +33,21 @@ Work through them in order — each builds on the last.
 
 **When you're lost, go back to [Module 00](00-orientation.md).** The file map and decision tree exist precisely for the moment where you're staring at the repo thinking "wait, which YAML do I edit for this?"
 
+## The one command to remember
+
+Between modules, `./lab` at the repo root drives whatever you've deployed:
+
+```bash
+./lab            # menu, if you'd rather not memorise verbs
+./lab status     # what's running
+./lab ssh        # log into a node (user admin, password admin)
+./lab graph      # topology diagram in a browser
+./lab destroy    # tear it down before you stop for the day
+./lab learn      # this module list, from the shell
+```
+
+It's a convenience wrapper, not a replacement for the modules — the course teaches the raw `containerlab` commands on purpose, and you should be able to type them. But when you've finished a module and just want to poke at the lab, this saves a trip back to the docs.
+
 ## Two ways to drive
 
 `setup.sh` at the repo root automates the whole platform build and is the right choice for module 01. From module 02 onward, this course deliberately uses the **manual commands** — the point is to learn what the wrapper is doing for you, not to press Enter until a network appears. Everything the wrapper does maps to a numbered script in `scripts/` or a file you'll meet in module 00.

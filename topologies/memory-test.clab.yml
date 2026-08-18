@@ -5,7 +5,7 @@ topology:
     arista_ceos:                          # underscore
       image: ceos:latest
     fortinet_fortigate:                   # underscore
-      image: vrnetlab/vr-fortios:7.0.9 
+      image: vrnetlab/vr-fortios:7.0.9
     linux:
       image: quay.io/frrouting/frr:10.2.1
 
@@ -21,7 +21,7 @@ topology:
       ports:
         - 8081:80
         - 2222:22
-  
+
     core-a:
       kind: arista_ceos
     core-b:

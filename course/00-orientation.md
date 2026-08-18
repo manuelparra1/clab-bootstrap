@@ -50,10 +50,13 @@ What every file is, one line each, grouped by when you touch it.
 
 | File | What it does |
 | --- | --- |
-| `setup.sh` | Guided interactive setup — the "just make it work" path |
+| `setup.sh` | Guided interactive setup — the "just make it work" path. Run once. |
+| `./lab` | The day-to-day driver: status / deploy / ssh / cli / graph / destroy / topo. Run it bare for a menu. This is the one to remember. |
 | `scripts/00-bootstrap.sh` | Installs Docker, Containerlab, Python env. Idempotent. |
 | `scripts/01-import-ceos.sh` | Verifies the cEOS tarball's hash, imports into Docker |
-| `scripts/02-deploy-lab.sh` | Deploy / destroy / inspect / graph a topology |
+| `scripts/02-deploy-lab.sh` | Deploy / destroy / inspect / graph a topology. Checks images exist locally first. |
+| `scripts/03-build-vrnetlab.sh` | Builds VM-based node images (FortiGate) from a vendor `.qcow2` via vrnetlab. Needs nested virt. |
+| `scripts/sync-labs.sh` | Copies/updates `~/labs/topologies` from the repo, leaving files you've edited alone |
 | `automation/link-inventory.sh` | Points Nornir & Ansible at the _current_ lab's inventory |
 
 ### You edit these (topology plane)
@@ -62,6 +65,7 @@ What every file is, one line each, grouped by when you touch it.
 | --- | --- |
 | `topologies/testlab.clab.yml` | 2-node smoke test. Don't grow this one — copy it. |
 | `topologies/spine-leaf.clab.yml` | The course fabric: 2 spines, 2 leaves |
+| `topologies/memory-test.clab.yml` | Bigger mixed lab: 2x FortiGate + 4x cEOS + FRR "ISPs" + hosts. Needs the vrnetlab image built first. |
 | _(yours)_ `topologies/<name>.clab.yml` | Copy an existing one and go |
 
 ### You edit these (config plane)
@@ -81,7 +85,21 @@ What every file is, one line each, grouped by when you touch it.
 | `automation/nornir/creds.py` | Reads `NORNIR_USERNAME/PASSWORD` env vars if set, else no-op |
 | `automation/pyproject.toml` | Python deps (uv's source of truth) |
 | `automation/requirements.txt` | Same deps, for the pip fallback |
-| `lib/ui.sh` | The gum/plain-bash UI helpers `setup.sh` uses |
+| `lib/ui.sh` | The gum/plain-bash UI helpers `setup.sh` and `./lab` use |
+
+### Two conventions worth knowing
+
+**Image tags.** Topologies reference `ceos:latest`, not a pinned version — everyone
+downloads a different cEOS build from Arista, so `01-import-ceos.sh` tags whatever
+you import as both `ceos:<version>` and `ceos:latest`. `docker images` still shows
+the real version. Get the images from the
+[team Drive](https://drive.google.com/drive/folders/1kBDv_xgv4T4NQJfWZtLKkCnYbmcfs9KU?usp=drive_link)
+or the vendor portals.
+
+**Two copies of every topology.** The repo has `topologies/`, and `~/labs/topologies/`
+is the working copy `02-deploy-lab.sh` actually deploys from. `sync-labs.sh` keeps
+them in step — it updates copies it installed and leaves ones you've edited alone.
+If a change to a topology seems to have no effect, this is why.
 
 ### Optional drawers (open when the course says to)
 
@@ -90,6 +108,7 @@ What every file is, one line each, grouped by when you touch it.
 | `automation/nornir/SECRETS.md` + `run-with-*.sh` + `secrets.example.yaml` + `.env.example` | Module 06: three credential backends for the Nornir path |
 | `automation/ansible/**` | The whole Ansible alternative: `ansible.cfg`, playbooks, `group_vars/ceos/` (incl. Vault) |
 | `automation/lib/vault.py` | Lets Python scripts read the Ansible Vault file too |
+| `docs/vrnetlab-fortigate.md` | Building FortiGate (and other VM-based nodes) with vrnetlab, incl. the nested-virt hypervisor setting |
 | `docs/*.md` | VM builds (vCenter / Proxmox) and how to distribute this repo |
 
 ### Generated at runtime (never in git, never hand-edited)
@@ -99,6 +118,8 @@ What every file is, one line each, grouped by when you touch it.
 | `clab-<labname>/` (next to the topology file) | Containerlab's working dir: node startup-configs, TLS certs, **the generated inventories** |
 | `~/.venvs/netauto/` | The Python environment (`netauto` alias activates it) |
 | `/tmp/clab-setup.log` | Everything `setup.sh` did, when you need to know why it failed |
+| `~/labs/topologies/` | The working copies you actually deploy; `sync-labs.sh` keeps them current |
+| `~/vrnetlab/` | vrnetlab clone, if you've built a VM-based node image |
 
 ---
 

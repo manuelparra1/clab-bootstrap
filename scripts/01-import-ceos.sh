@@ -32,6 +32,11 @@ fi
 
 if [[ ! -f "$TARBALL" ]]; then
   echo "File not found: $TARBALL" >&2
+  echo >&2
+  echo "Get the cEOS tarball from the team Drive:" >&2
+  echo "  https://drive.google.com/drive/folders/1kBDv_xgv4T4NQJfWZtLKkCnYbmcfs9KU?usp=drive_link" >&2
+  echo "  -> ContainerLab/Arista Images/  (take the .tar.xz AND the .sha512sum)" >&2
+  echo "or from https://www.arista.com/en/support/software-download" >&2
   exit 1
 fi
 
@@ -46,6 +51,8 @@ if [[ -f "$SHAFILE" ]]; then
   echo "Checksum OK."
 else
   echo "No .sha512sum file found next to the tarball ($SHAFILE)." >&2
+  echo "The team Drive ships it alongside the image — grab it if you want this" >&2
+  echo "import verified:  https://drive.google.com/drive/folders/1kBDv_xgv4T4NQJfWZtLKkCnYbmcfs9KU?usp=drive_link" >&2
   echo "Proceeding without verification — you did check it on your laptop, right?" >&2
 fi
 

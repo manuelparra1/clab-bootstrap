@@ -41,6 +41,7 @@ clab_whats_next() {
       ./lab cli             EOS CLI without SSH — works when SSH doesn't
       ./lab graph           topology diagram at http://${THIS_IP:-<VM-IP>}:50080
       ./lab destroy         tear it down (cEOS nodes eat RAM)
+      ./lab fortigate       build the FortiGate image (VM-based nodes)
 
   Learn it properly — the course is the path, the README is the reference:
 
@@ -250,18 +251,24 @@ THIS_IP="${THIS_IP:-<VM-IP>}"
 if docker images 2>/dev/null | grep -q '^ceos ' || sudo docker images 2>/dev/null | grep -q '^ceos '; then
   ui_ok "A cEOS image is already imported"
 else
-  ui_note "The cEOS-lab image can't be downloaded automatically — Arista puts
-it behind a free account, and their EULA doesn't allow redistributing it.
-So everyone grabs their own copy.
+  ui_note "The cEOS-lab image can't be downloaded automatically — it's behind
+a vendor account. Two ways to get it:
 
-  1. On your LAPTOP (not this VM), log in at:
-       https://www.arista.com/en/support/software-download
-  2. Software Downloads -> cEOS-lab -> newest 64-bit .tar.xz
-     (also grab the matching .sha512sum file)
-  3. Verify it downloaded intact:
-       shasum -a 512 -c cEOS64-lab-<version>.tar.xz.sha512sum
-  4. Copy it here:
-       scp cEOS64-lab-<version>.tar.xz ${THIS_USER}@${THIS_IP}:~/"
+  TEAM DRIVE (fastest):
+    https://drive.google.com/drive/folders/1kBDv_xgv4T4NQJfWZtLKkCnYbmcfs9KU?usp=drive_link
+    -> ContainerLab/Arista Images/
+    Take the .tar.xz AND its .sha512sum — the import verifies the hash.
+
+  OR FROM ARISTA:
+    1. On your LAPTOP (not this VM), log in at:
+         https://www.arista.com/en/support/software-download
+    2. Software Downloads -> cEOS-lab -> newest 64-bit .tar.xz
+       (also grab the matching .sha512sum file)
+    3. Verify it downloaded intact:
+         shasum -a 512 -c cEOS64-lab-<version>.tar.xz.sha512sum
+
+  Then copy it here:
+    scp cEOS64-lab-<version>.tar.xz* ${THIS_USER}@${THIS_IP}:~/"
 
   if ui_confirm "Is the .tar.xz file on this VM now?"; then
     # Try to find it automatically before asking.
@@ -296,6 +303,31 @@ So everyone grabs their own copy.
     ui_info "No problem — grab the image, then re-run ./setup.sh."
     ui_info "Everything installed so far is already done and will be skipped."
     exit 0
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# Optional: VM-based node images (FortiGate et al) via vrnetlab
+#
+# Only offered when a topology actually asks for one, so the common cEOS-only
+# path never sees this prompt.
+# ---------------------------------------------------------------------------
+if grep -rqs 'vrnetlab/' "$REPO_DIR/topologies" 2>/dev/null; then
+  if ! sudo docker images --format '{{.Repository}}' 2>/dev/null | grep -q '^vrnetlab/'; then
+    ui_step "Optional: VM-based nodes (FortiGate)"
+    ui_note "One of your topologies uses a vrnetlab image — FortiGate and friends
+are VM images, not containers, so they're built locally from a vendor .qcow2
+and need nested virtualization enabled on the hypervisor.
+
+Skip this if you're only running cEOS topologies; the test lab doesn't need it."
+    if ui_confirm "Build the FortiGate image now?" default_no; then
+      if ! bash "$REPO_DIR/scripts/03-build-vrnetlab.sh"; then
+        ui_warn "vrnetlab build didn't complete — cEOS topologies still work."
+        ui_info "Details and manual steps: docs/vrnetlab-fortigate.md"
+      fi
+    else
+      ui_info "Skipped. Run it later with:  ./lab fortigate"
+    fi
   fi
 fi
 

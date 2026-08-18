@@ -51,7 +51,7 @@ scp -r clab-bootstrap yourname@<VM-IP>:~/
 
 ssh yourname@<VM-IP>
 cd ~/clab-bootstrap
-chmod +x setup.sh scripts/*.sh
+chmod +x setup.sh lab scripts/*.sh
 ./setup.sh
 ```
 
@@ -72,7 +72,7 @@ scp clab-bootstrap.zip yourname@<VM-IP>:~/
 sudo apt install -y unzip
 unzip clab-bootstrap.zip
 cd clab-bootstrap
-chmod +x setup.sh scripts/*.sh
+chmod +x setup.sh lab scripts/*.sh
 ./setup.sh
 ```
 

@@ -2,6 +2,8 @@
 
 **Goal:** internalize the lab lifecycle — deploy, inspect, access, configure, save, destroy, restore — using the 2-node test topology. By the end, Containerlab should feel like "GNS3, but it's code."
 
+> **Shortcut, once you know these:** `./lab` at the repo root wraps every command in this module — `./lab deploy`, `./lab ssh`, `./lab graph`, `./lab destroy`, or run it bare for a menu. Type the raw commands below first; the point of this module is knowing what the wrapper does. After that, use the wrapper.
+
 ---
 
 ## 1. Read the topology file before deploying it

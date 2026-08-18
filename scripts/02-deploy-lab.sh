@@ -73,11 +73,33 @@ ceos_images() {
     | grep '^ceos:' | grep -v ':latest$' | grep -v '<none>' || true
 }
 
+# Which images CAN'T be fetched from a registry?
+#
+# cEOS is imported from Arista's tarball. vrnetlab images (FortiGate, and any
+# other VM-based node) are built locally from a vendor qcow2. Neither exists on
+# any registry, so a missing one is a hard stop.
+#
+# Everything else — quay.io/frrouting/frr, praqma/network-multitool, anything
+# on Docker Hub — is genuinely pullable, and containerlab will fetch it on
+# first deploy. Blocking on those would make every topology using a stock
+# container fail the first time it ran, which is exactly wrong.
+must_be_local() {
+  case "$1" in
+    ceos:*|ceos|*/ceos:*)          return 0 ;;
+    vrnetlab/*|*/vrnetlab/*|vr-*)  return 0 ;;
+    *)                             return 1 ;;
+  esac
+}
+
 check_images() {
-  local img missing=0 found n=0 first=""
+  local img missing=0 found n=0 first="" pullable=()
+
   while IFS= read -r img; do
     [[ -n "$img" ]] || continue
-    if sudo docker image inspect "$img" >/dev/null 2>&1; then
+    sudo docker image inspect "$img" >/dev/null 2>&1 && continue
+
+    if ! must_be_local "$img"; then
+      pullable+=("$img")
       continue
     fi
 
@@ -104,9 +126,20 @@ check_images() {
       fi
     fi
 
-    echo "Image not available locally: $img" >&2
+    echo "Image not available locally, and not fetchable from a registry: $img" >&2
+    case "$img" in
+      vrnetlab/*|vr-*)
+        echo "  This is a vrnetlab image — built locally from a vendor qcow2." >&2
+        echo "  See docs/vrnetlab-fortigate.md for the build steps." >&2
+        ;;
+    esac
     missing=1
   done < <(grep -E '^[[:space:]]*image:' "$TOPO_FILE" | awk '{print $2}' | sort -u)
+
+  if (( ${#pullable[@]} > 0 )); then
+    echo "==> These will be pulled on first deploy (this can take a minute):"
+    printf '      %s\n' "${pullable[@]}"
+  fi
 
   if (( missing )); then
     echo >&2
@@ -115,7 +148,8 @@ check_images() {
       ceos_images | sed 's/^/  /' >&2
     else
       echo "No cEOS image is imported on this host. cEOS can't be pulled from a" >&2
-      echo "registry — import it from the tarball you download from Arista:" >&2
+      echo "registry — import it from the tarball you download from Arista or the" >&2
+      echo "team Drive (see README, 'Getting the images'):" >&2
       echo "  ./scripts/01-import-ceos.sh ~/cEOS64-lab-<version>.tar.xz" >&2
     fi
     return 1

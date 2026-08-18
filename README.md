@@ -36,7 +36,7 @@ This README is the _reference_. The course is the _path_.
 
 ## What this does NOT automate
 
-- **Downloading cEOS-lab from Arista.** Their download portal is behind an authenticated account per Arista's EULA, so there's no way to script this legally/reliably. You'll download `cEOS64-lab-<version>.tar.xz` and its `.sha512sum` file yourself and `scp` them to the VM (steps below).
+- **Downloading the vendor images.** Arista's cEOS portal (and Fortinet's) sits behind an authenticated account per their EULAs, so there's no way to script the download legally or reliably. Grab them from the [team Drive](https://drive.google.com/drive/folders/1kBDv_xgv4T4NQJfWZtLKkCnYbmcfs9KU?usp=drive_link) or the vendor directly, then `scp` to the VM — see [Getting the images](#getting-the-images).
 - **vCenter VM creation.** vSphere doesn't expose a good non-interactive path for this without govc/PowerCLI/Terraform, which is more setup than it's worth for a handful of lab VMs. Follow `docs/vcenter-vm-setup.md` instead — it's about 10 minutes of clicking.
 
 ---
@@ -65,7 +65,7 @@ git clone <your-internal-git-url> ~/clab-bootstrap
 cd ~/clab-bootstrap
 
 # 2. Run the guided setup — it asks what you want and explains as it goes
-chmod +x setup.sh scripts/*.sh
+chmod +x setup.sh lab scripts/*.sh
 ./setup.sh
 ```
 
@@ -112,7 +112,34 @@ python3 04_idempotent_deploy.py   # run again — this time nothing changes
 
 ---
 
-## Getting the cEOS image
+## Getting the images
+
+Two images can't be fetched by any script: Arista cEOS and, if you're running the
+FortiGate topology, the FortiGate qcow2. Both sit behind vendor accounts.
+
+### Team Drive (fastest)
+
+**<https://drive.google.com/drive/folders/1kBDv_xgv4T4NQJfWZtLKkCnYbmcfs9KU?usp=drive_link>**
+
+```
+ContainerLab/Arista Images/
+    cEOS64-lab-4.34.7M.tar.xz              <- the image
+    cEOS64-lab-4.34.7M.tar.xz.sha512sum    <- grab this too, the import verifies it
+    cEOS64-lab-4.34.7M.tar.xz.md5sum
+    cEOS64-lab-4.34.7M.tar.xz.json
+    cEOS64-lab-4.34.7M.tar.xz.cms.pem
+
+ContainerLab/Fortigate Images/
+    fortinet-FGT-v7.0.9-build0444.qcow2
+```
+
+Download the `.tar.xz` **and** its `.sha512sum` into the same directory —
+`01-import-ceos.sh` re-verifies the hash and warns if the checksum file is absent.
+
+This mirror is for people who already hold the relevant Arista and Fortinet
+entitlements; it's a convenience, not a substitute for having one.
+
+### Or straight from the vendor
 
 1. On your own laptop (not the VM), log into [Arista Software Downloads](https://www.arista.com/en/support/software-download) with your Arista account.
 2. Software Downloads → **cEOS-lab** → download the latest 64-bit `.tar.xz` and its matching `.sha512sum` file.
@@ -121,13 +148,38 @@ python3 04_idempotent_deploy.py   # run again — this time nothing changes
    shasum -a 512 -c cEOS64-lab-<version>.tar.xz.sha512sum
    # must print OK
    ```
-4. Copy it to the VM:
-   ```bash
-   scp cEOS64-lab-<version>.tar.xz yourname@<VM-IP>:~/
-   ```
-5. On the VM, run `scripts/01-import-ceos.sh`, which re-verifies the hash (catches corruption from the transfer itself) and imports it into Docker with a progress bar.
 
-Everyone on the team needs their own Arista account for this — the image itself can't be redistributed through this repo.
+FortiGate images come from <https://support.fortinet.com> → Download → VM Images →
+the KVM image.
+
+### Getting it onto the VM
+
+```bash
+scp cEOS64-lab-<version>.tar.xz cEOS64-lab-<version>.tar.xz.sha512sum yourname@<VM-IP>:~/
+```
+
+Then on the VM, `setup.sh` finds it automatically, or run the import directly:
+
+```bash
+./scripts/01-import-ceos.sh ~/cEOS64-lab-<version>.tar.xz
+```
+
+It re-verifies the hash (catching corruption from the transfer itself) and imports
+with a progress bar.
+
+FortiGate is a different workflow — it's a VM image, not a container, so it has
+to be built with vrnetlab and needs nested virtualization enabled on the
+hypervisor (on vSphere that's **Expose hardware assisted virtualization to the
+guest OS**, VM powered off). One command does the whole thing:
+
+```bash
+./lab fortigate
+```
+
+It checks `/dev/kvm` first and names the exact hypervisor setting if it's
+missing, then clones vrnetlab, builds, and reconciles your topology's `image:`
+tag with whatever the build produced. Full walkthrough and manual steps:
+**[`docs/vrnetlab-fortigate.md`](docs/vrnetlab-fortigate.md)**.
 
 ### Image tags
 
@@ -229,7 +281,8 @@ Entirely optional and purely cosmetic: `lib/ui.sh` implements every UI function 
 
 ```
 clab-bootstrap/
-├── setup.sh                         <- START HERE — guided interactive setup
+├── setup.sh                         <- START HERE (once) — guided platform setup
+├── lab                              <- START HERE (daily) — deploy/ssh/graph/destroy
 ├── README.md                        <- you are here
 ├── course/                          <- 🎓 the guided course (modules 00-06)
 │   ├── README.md                    <- course overview + module index
@@ -242,16 +295,20 @@ clab-bootstrap/
 │   └── 06-secrets.md                <- credential management tour
 ├── lib/ui.sh                        <- terminal UI helpers (gum, w/ plain-bash fallback)
 ├── docs/
-│   ├── vcenter-vm-setup.md          <- vCenter/vSphere Client steps
+│   ├── vcenter-vm-setup.md          <- vCenter/vSphere steps (incl. nested virt toggle)
 │   ├── proxmox-vm-setup.md          <- Proxmox home-lab steps (+ why VM not LXC)
+│   ├── vrnetlab-fortigate.md        <- building VM-based nodes (FortiGate) with vrnetlab
 │   └── distributing.md              <- git vs scp vs zip, for sharing with the team
 ├── scripts/
 │   ├── 00-bootstrap.sh              <- OS + Docker + Containerlab + venv (uv, w/ pip fallback)
-│   ├── 01-import-ceos.sh            <- verify + docker import cEOS
-│   └── 02-deploy-lab.sh             <- deploy + inspect a topology
+│   ├── 01-import-ceos.sh            <- verify + docker import cEOS (tags ceos:latest)
+│   ├── 02-deploy-lab.sh             <- deploy / destroy / inspect / graph a topology
+│   ├── 03-build-vrnetlab.sh         <- build FortiGate (or other VM images) via vrnetlab
+│   └── sync-labs.sh                 <- keep ~/labs/topologies in step with the repo
 ├── topologies/
 │   ├── testlab.clab.yml             <- 2-node back-to-back cEOS smoke test
-│   └── spine-leaf.clab.yml          <- 2-spine/2-leaf Clos fabric (course modules 03-05)
+│   ├── spine-leaf.clab.yml          <- 2-spine/2-leaf Clos fabric (course modules 03-05)
+│   └── memory-test.clab.yml         <- 10-node mixed lab: 2x FortiGate + 4x cEOS + FRR/hosts
 └── automation/
     ├── requirements.txt             <- pip fallback (pyproject.toml is uv's source of truth)
     ├── pyproject.toml               <- uv project manifest — `cd automation && uv sync`
@@ -359,5 +416,5 @@ The automation approach itself also traces back further, to a team automation co
 | `04_idempotent_deploy.py` shows a diff every run, never settles | cEOS eAPI config compare can be picky about exact syntax — check `templates/ceos_base.j2` renders valid EOS config by hand first (`ssh` in and paste it). |
 | `uv: command not found` right after bootstrap | `uv` installs to `~/.local/bin`; open a new shell (or `source ~/.bashrc`) so `PATH` picks it up. |
 | `sops: command not found` | No apt package on Debian — see `automation/nornir/SECRETS.md` for the `.deb`-from-GitHub-releases install. |
-| `setup.sh: Permission denied` | `scp`/`unzip` didn't preserve the executable bit: `chmod +x setup.sh scripts/*.sh` |
+| `setup.sh: Permission denied` | `scp`/`unzip` didn't preserve the executable bit: `chmod +x setup.sh lab scripts/*.sh` |
 | Setup failed partway through | Re-run `./setup.sh` — completed steps are detected and skipped. Full output is in `/tmp/clab-setup.log`. |

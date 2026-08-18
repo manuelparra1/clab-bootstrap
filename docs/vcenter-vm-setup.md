@@ -24,8 +24,28 @@ vSphere Client → your resource pool → **Actions → New Virtual Machine → 
 | SCSI Controller | VMware Paravirtual |
 | Network Adapter | **VMXNET3** — see step 3, this is the important one |
 | CD/DVD Drive | Datastore ISO File → point at the Debian ISO you uploaded; check **Connect At Power On** |
+| CPU → Hardware virtualization | **Tick "Expose hardware assisted virtualization to the guest OS"** if you want FortiGate or any other VM-based node — see below |
 
 Why these specs: cEOS nodes run ~0.5–1 GB RAM each. 32 GB comfortably supports a handful of nodes (a ring of 6 routers, or a small spine-leaf) without starving the host. Scale up if you're planning something bigger.
+
+### Nested virtualization — needed for FortiGate, not for cEOS
+
+cEOS is a container, so it needs nothing special. But **FortiGate, Palo Alto, Cisco IOS-XE and friends are VM images**: Containerlab runs them via [vrnetlab](https://github.com/hellt/vrnetlab), which boots the vendor's qcow2 under QEMU *inside* a container. QEMU needs `/dev/kvm`, and a guest only gets `/dev/kvm` if the hypervisor exposes VT-x/AMD-V to it.
+
+On vSphere that's off by default. To turn it on:
+
+**Edit Settings → Virtual Hardware → expand CPU → tick "Expose hardware assisted virtualization to the guest OS".**
+
+The VM must be **powered off** to change this. Verify from inside the VM afterwards:
+
+```bash
+ls -l /dev/kvm                        # must exist
+grep -Ec '(vmx|svm)' /proc/cpuinfo    # must be > 0
+```
+
+Without it, vrnetlab nodes either refuse to start or fall back to pure software emulation and take many minutes per node. `scripts/03-build-vrnetlab.sh` checks this before it builds anything and tells you exactly this if it's missing.
+
+If you're only ever running cEOS, you can skip it — but it costs nothing to enable now and saves a power-cycle later.
 
 ## 3. Network adapter — the part that actually matters
 

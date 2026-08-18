@@ -32,7 +32,7 @@ cd ~/clab-bootstrap
 ./setup.sh
 ```
 
-Answer the prompts. Recommendations for this course: **yes** to gum (nicer prompts, and it's a tool worth knowing), **uv** for the Python environment, and when it asks about the cEOS image, follow its instructions — you'll download the tarball from Arista's portal **on your laptop** (needs your own free Arista account), verify the sha512, and `scp` it to the VM. The script re-verifies the hash on the VM side before importing; a corrupted image produces genuinely baffling boot failures later, which is why it's this paranoid.
+Answer the prompts. Recommendations for this course: **yes** to gum (nicer prompts, and it's a tool worth knowing), **uv** for the Python environment, and when it asks about the cEOS image, follow its instructions. Fastest route is the [team Drive](https://drive.google.com/drive/folders/1kBDv_xgv4T4NQJfWZtLKkCnYbmcfs9KU?usp=drive_link) → `ContainerLab/Arista Images/` — take the `.tar.xz` **and** its `.sha512sum`. Otherwise download it from Arista's portal **on your laptop** (needs your own free Arista account), verify the sha512, and `scp` it to the VM. The script re-verifies the hash on the VM side before importing; a corrupted image produces genuinely baffling boot failures later, which is why it's this paranoid.
 
 Say **yes** to deploying the test topology at the end — module 02 uses it. Skip the secrets prompt for now; that's module 06.
 

@@ -1,5 +1,8 @@
 # Nornir / NAPALM / Netmiko Demo — "Typist to Architect"
 
+> Run these from a deployed lab. `./lab automation` (repo root) offers them as a menu
+> and activates the venv for you; `./lab status` confirms the lab is up first.
+
 This is the low-friction automation path: pure Python, no Ansible infrastructure required. It mirrors the Netmiko → Nornir → NAPALM progression from the team's automation course, retargeted at the Containerlab cEOS topology instead of the original GNS3 + bastion-host lab.
 
 **Zero setup required to start.** Containerlab bakes cEOS's default `admin`/`admin` credentials directly into the auto-generated `nornir-simple-inventory.yml` it writes on every `deploy`. As long as you've run `../link-inventory.sh` once after deploying the lab, these scripts just work — no vault, no collections to install, no credentials to type in. That contrast is worth pointing out to coworkers evaluating whether to invest in full Ansible tooling: this is what "automation with (almost) zero prep work" looks like.

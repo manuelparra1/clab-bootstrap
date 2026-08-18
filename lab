@@ -19,6 +19,7 @@
 #   ./lab destroy         tear the lab down
 #   ./lab topo [file]     choose which topology the above act on
 #   ./lab learn           where to go next in the course
+#   ./lab fortigate       build the FortiGate image (vrnetlab) for VM-based nodes
 #
 # Everything here is a thin wrapper over containerlab. Module 02 of the course
 # teaches the raw commands on purpose — this is for after you know them.
@@ -156,6 +157,10 @@ cmd_topo() {
   set_topo "$LABS_TOPO_DIR/$choice"
 }
 
+cmd_fortigate() {
+  bash "$REPO_DIR/scripts/03-build-vrnetlab.sh" "$@"
+}
+
 cmd_learn() {
   ui_header "Where to go next"
   cat <<'EOF'
@@ -230,6 +235,7 @@ menu() {
       "cli         EOS CLI without SSH" \
       "automation  run the Nornir demos" \
       "topo        switch topology" \
+      "fortigate   build the FortiGate image (vrnetlab)" \
       "destroy     tear the lab down" \
       "learn       what to read next" \
       "quit")"
@@ -243,6 +249,7 @@ menu() {
       cli) cmd_cli || true ;;
       automation) cmd_automation || true ;;
       topo) cmd_topo || true ;;
+      fortigate) cmd_fortigate || true ;;
       destroy) cmd_destroy ;;
       learn) cmd_learn ;;
       quit|*) ui_info "Bye. Re-run with ./lab any time."; return 0 ;;
@@ -261,6 +268,7 @@ case "${1:-menu}" in
   destroy)   cmd_destroy ;;
   topo)      shift; cmd_topo "${1:-}" ;;
   learn)     cmd_learn ;;
+  fortigate) shift; cmd_fortigate "$@" ;;
   automation) cmd_automation ;;
   -h|--help|help)
     sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//' ;;

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>02a-seeing-the-topology</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="google-sans-flex.css" />
+</head>
+<body>
+<h1 id="module-02a-seeing-the-topology-for-gns3-users">Module 02a —
+Seeing the Topology (for GNS3 Users)</h1>
+<p><strong>Goal:</strong> stop missing the GNS3 canvas. Learn the four
+ways Containerlab renders a topology, when to reach for each, and the
+mental shift that makes the whole thing click.</p>
+<p>Slot this in right after <a href="02-containerlab-basics.md">Module
+02</a> — you’ll want the testlab or spine-leaf fabric handy to try
+things against.</p>
+<hr />
+<h2 id="the-mental-shift-this-is-the-actual-lesson">1. The mental shift
+(this is the actual lesson)</h2>
+<p>In GNS3, <strong>the canvas <em>is</em> the network.</strong> You
+drag a router onto a drawing, draw a line to another router, and that
+act of drawing creates the topology. The picture and the reality are the
+same object. Which is lovely — until you want to code-review a change,
+or diff two versions, or hand a colleague “the network” without handing
+them a proprietary project file.</p>
+<p>In Containerlab, <strong>the YAML is the network, and pictures are
+generated views of it.</strong> You never draw. You describe, then
+render.</p>
+<pre><code>        GNS3                          Containerlab
+   ┌──────────────┐              ┌──────────────────┐
+   │  the canvas  │              │  topology.yml    │  &lt;- the source of truth
+   │  IS the      │              └────────┬─────────┘
+   │  network     │                       │ generate
+   └──────────────┘              ┌────────┴─────────┐
+                                 │ HTML / Mermaid / │  &lt;- disposable views
+                                 │ draw.io / dot    │
+                                 └──────────────────┘</code></pre>
+<p>The payoff is one you’ll feel within a week: <strong>the diagram can
+never be out of date.</strong> Everyone has seen a Visio in a customer’s
+SharePoint that stopped matching reality three changes ago. That failure
+mode is structurally impossible here — the diagram is regenerated from
+the same file that builds the lab. If they disagree, the diagram is just
+stale by one command.</p>
+<p>The cost is that you can’t <em>design</em> by dragging. You design by
+typing. For a 4-node fabric that’s a wash; for a 40-node fabric, typing
+wins outright, because your topology becomes copy-paste-able and
+loop-able rather than 400 mouse drags.</p>
+<hr />
+<h2 id="the-four-views">2. The four views</h2>
+<h3 id="view-1-the-table-inspect">View 1 — The table
+(<code>inspect</code>)</h3>
+<p>The fastest answer to “what’s running and where do I SSH?”</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/02-deploy-lab.sh</span> topologies/spine-leaf.clab.yml inspect</span></code></pre></div>
+<p>Node names, kinds, state, management IPv4/IPv6. This is your
+<code>show ip int brief</code> of the lab. Not a picture, but 80% of the
+time it’s what you actually wanted.</p>
+<h3 id="view-2-mermaid-diagram-as-code-best-fit-for-aston-docs">View 2 —
+Mermaid (diagram-as-code) ⭐ best fit for Aston docs</h3>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">containerlab</span> graph <span class="at">--mermaid</span> <span class="at">-t</span> topologies/spine-leaf.clab.yml</span></code></pre></div>
+<p>Writes a <code>.mermaid</code> file — a <em>text</em> description of
+the diagram:</p>
+<pre><code>graph TD
+  spine1 --- leaf1
+  spine1 --- leaf2
+  ...</code></pre>
+<p>Control the layout direction with <code>--mermaid-direction</code>,
+which accepts <code>TB</code>, <code>TD</code>, <code>BT</code>,
+<code>RL</code>, and <code>LR</code>. For a spine-leaf fabric,
+<code>TB</code> (top-to-bottom) puts spines above leaves and looks like
+the design actually is:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">containerlab</span> graph <span class="at">--mermaid</span> <span class="at">--mermaid-direction</span> TB <span class="at">-t</span> topologies/spine-leaf.clab.yml</span></code></pre></div>
+<p><strong>Why this one matters most for us:</strong> Mermaid renders
+natively in GitHub, GitLab, Notion — and in <strong>Obsidian</strong>,
+which is where a lot of Aston engineering notes already live. Paste the
+output into a fenced <code>```mermaid</code> block in a note and you get
+a live diagram that lives in version control as text, diffs like text,
+and never needs re-exporting. A topology diagram in a markdown MOP that
+regenerates from the lab definition is a genuinely nice thing to hand a
+customer or a teammate.</p>
+<h3
+id="view-3-the-interactive-html-graph-closest-to-the-gns3-canvas">View 3
+— The interactive HTML graph (closest to the GNS3 canvas)</h3>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">containerlab</span> graph <span class="at">-t</span> topologies/spine-leaf.clab.yml</span></code></pre></div>
+<p>With no format flag, <code>graph</code> starts an embedded web server
+on <strong>port 50080</strong> and serves an interactive topology map —
+drag nodes around, see the links, get a feel for the shape.</p>
+<p><strong>Practical note for our setup:</strong> the lab VM is routable
+from Aston WiFi and the VPN, so just browse to
+<code>http://&lt;vm-ip&gt;:50080</code>. If your VM ever <em>isn’t</em>
+directly reachable (a locked-down segment, or a home Proxmox box behind
+a firewall), tunnel it over the SSH session you already have:</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># from your laptop</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh</span> <span class="at">-L</span> 50080:localhost:50080 you@<span class="op">&lt;</span>vm-ip<span class="op">&gt;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># then browse to http://localhost:50080</span></span></code></pre></div>
+<p>That port-forward trick generalizes to anything else you run on the
+VM later, so it’s worth having in your fingers.</p>
+<p>Note this is a <em>viewer</em>, not an editor — moving nodes changes
+the picture, not the lab. If you want to edit graphically, that’s View
+5.</p>
+<h3 id="view-4-draw.io-diagrams.net-the-customer-deliverable">View 4 —
+draw.io / diagrams.net (the customer deliverable)</h3>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">containerlab</span> graph <span class="at">--drawio</span> <span class="at">-t</span> topologies/spine-leaf.clab.yml</span></code></pre></div>
+<p>This produces a <code>.drawio</code> file you can open in
+diagrams.net and edit like any other diagram — which makes it the right
+choice when the artifact needs to leave the lab: a design doc, an
+as-built, a slide for a customer readout.</p>
+<p>Under the hood it pulls and runs the <a
+href="https://github.com/srl-labs/clab-io-draw"><code>clab-io-draw</code></a>
+container, so it needs Docker and internet access the first time (both
+of which you have). You can pass options through to that tool:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">containerlab</span> graph <span class="at">--drawio</span> <span class="dt">\</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--drawio-args</span><span class="op">=</span><span class="st">&quot;--theme nokia_dark --layout horizontal&quot;</span> <span class="dt">\</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-t</span> topologies/spine-leaf.clab.yml</span></code></pre></div>
+<p>There’s also <code>--dot</code> if you’d rather have Graphviz format
+for a scripted pipeline.</p>
+<h3 id="view-5-the-vs-code-extension-the-real-gns3-replacement">View 5 —
+The VS Code extension (the real GNS3 replacement)</h3>
+<p>If what you actually miss is <em>drawing</em>, install the <a
+href="https://containerlab.dev/manual/vsc-extension/">Containerlab VS
+Code extension</a>. It’s the closest thing to GNS3’s experience, and
+it’s built by the Containerlab community rather than bolted on:</p>
+<ul>
+<li><strong>TopoViewer</strong> — a graphical topology creator/editor.
+YAML on one side, canvas on the other, drag nodes, and the YAML updates.
+This is drag-and-drop topology building with a text file as the
+output.</li>
+<li>Tree views of your local (undeployed) and running labs</li>
+<li>Deploy/destroy from the UI</li>
+<li><strong>Right-click a lab → SSH to all nodes</strong> in VS Code’s
+multi-tab terminal — a real time-saver on a fabric</li>
+<li>Inspect the lab in the same table format as the CLI, with a filter
+box</li>
+<li>Export the canvas to SVG for docs</li>
+</ul>
+<p>If someone on the team is bouncing off the CLI-only workflow, point
+them here first. It’s a legitimate on-ramp, not a crutch — the YAML it
+produces is the same YAML, so they can graduate to the CLI whenever.</p>
+<h3 id="bonus-filtering-big-topologies">Bonus: filtering big
+topologies</h3>
+<p>Once a fabric gets large, graphing all of it is noise.
+<code>--node-filter</code> takes a comma-separated list of node names
+and graphs only those plus their links:</p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="ex">containerlab</span> graph <span class="at">--mermaid</span> <span class="at">--node-filter</span> spine1,leaf1,leaf2 <span class="dt">\</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-t</span> topologies/spine-leaf.clab.yml</span></code></pre></div>
+<p>Useful for “just show me this pod” diagrams in a troubleshooting
+writeup.</p>
+<hr />
+<h2 id="which-one-when">3. Which one, when</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Reach for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>“What’s the mgmt IP of leaf2?”</td>
+<td><code>inspect</code></td>
+</tr>
+<tr>
+<td>“Is this cabled the way I think?”</td>
+<td><code>--mermaid</code>, eyeball it</td>
+</tr>
+<tr>
+<td>Documenting a lab in Obsidian / a markdown MOP</td>
+<td><code>--mermaid</code> into a fenced block</td>
+</tr>
+<tr>
+<td>Explaining the fabric to someone over a screenshare</td>
+<td>HTML graph on :50080</td>
+</tr>
+<tr>
+<td>Diagram going into a customer doc or slide</td>
+<td><code>--drawio</code></td>
+</tr>
+<tr>
+<td>“I want to <em>build</em> topologies visually”</td>
+<td>VS Code extension + TopoViewer</td>
+</tr>
+<tr>
+<td>Feeding a diagram into a scripted pipeline</td>
+<td><code>--dot</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="the-workflow-this-enables">4. The workflow this enables</h2>
+<p>Here’s the loop that replaces GNS3’s “open project, look at
+canvas”:</p>
+<pre><code>1. edit topologies/&lt;lab&gt;.clab.yml         (change the network)
+2. containerlab graph --mermaid -t ...     (check you drew what you meant)
+3. destroy + deploy                        (make it real)
+4. link-inventory.sh                       (repoint automation — module 00!)
+5. paste the mermaid into your notes       (documentation, for free)</code></pre>
+<p>Step 2 is the one GNS3 users under-use. Rendering the diagram
+<em>before</em> deploying is a cheap sanity check on a topology edit —
+you’ll catch “oops, I cabled both leaf uplinks to spine1” in two seconds
+instead of after a four-node boot and a confused OSPF troubleshoot.</p>
+<p>Step 5 is the one that makes people converts. Documentation that
+generates itself from the source of truth is a genuinely better
+situation than any GUI screenshot workflow.</p>
+<hr />
+<h2 id="try-it">5. Try it</h2>
+<p>Against the spine-leaf fabric from <a href="03-spine-leaf.md">Module
+03</a> (deploy it if it isn’t up):</p>
+<ol type="1">
+<li>Run <code>inspect</code> and note the four management IPs.</li>
+<li>Generate a Mermaid graph with <code>--mermaid-direction TB</code>.
+Read the text output <em>before</em> rendering it — you should be able
+to see the full mesh in the link list.</li>
+<li>Paste it into a markdown file in Obsidian (or a GitHub gist) inside
+a <code>```mermaid</code> block. Confirm it renders.</li>
+<li>Start the HTML graph and open it from your laptop. If it doesn’t
+load directly, do it again through the SSH port-forward — get that
+working at least once so you know the trick.</li>
+<li>Generate a <code>.drawio</code> and open it in diagrams.net.</li>
+<li><strong>The proof:</strong> add a <code>leaf3</code> node and its
+two spine links to a <em>copy</em> of the topology file, regenerate the
+Mermaid without deploying anything, and watch the diagram show a change
+that doesn’t exist yet in the running lab. Sit with that for a second —
+the diagram tracks the <em>intent</em> file, and reality is what you
+sync to it.</li>
+</ol>
+<h2 id="checkpoint">Checkpoint</h2>
+<ul class="task-list">
+<li><label><input type="checkbox" />You can produce all four view
+formats from one topology file</label></li>
+<li><label><input type="checkbox" />A Mermaid diagram of your fabric is
+rendering in your notes</label></li>
+<li><label><input type="checkbox" />You’ve reached the HTML graph from
+your laptop, at least once via the SSH port-forward</label></li>
+<li><label><input type="checkbox" />You can explain why a generated
+diagram can’t go stale the way a Visio does</label></li>
+</ul>
+<h2 id="what-you-learned">What you learned</h2>
+<p>That “I can’t see my topology” was really “I’m used to the picture
+being the source of truth.” Containerlab inverts that: one text file,
+many disposable views, none of which can drift from it. Plus the
+practical kit — <code>inspect</code> for facts, Mermaid for docs, the
+HTML graph for talking to humans, draw.io for deliverables, and the VS
+Code extension when you genuinely want to drag things around.</p>
+<p>Back to: <a href="03-spine-leaf.md">Module 03 — The spine-leaf
+fabric</a></p>
+</body>
+</html>

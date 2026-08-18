@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>vrnetlab-fortigate</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="google-sans-flex.css" />
+</head>
+<body>
+<h1 id="fortigate-on-containerlab-via-vrnetlab">FortiGate on
+Containerlab (via vrnetlab)</h1>
+<p>FortiGate is not a container. It ships as a <strong>qcow2 disk
+image</strong> — a full VM — so Containerlab runs it through <a
+href="https://github.com/hellt/vrnetlab">vrnetlab</a>, which wraps a
+vendor VM in a container that QEMU boots at start-up.</p>
+<p>That has two consequences worth understanding before you start:</p>
+<ol type="1">
+<li><strong>There is no image to pull.</strong>
+<code>vrnetlab/vr-fortios:7.0.9</code> does not exist on any registry.
+You build it locally from the qcow2. <code>02-deploy-lab.sh</code>
+checks for it and stops with this message rather than letting
+Containerlab try a registry and fail with a confusing “pull access
+denied”.</li>
+<li><strong>It needs hardware virtualization.</strong> QEMU inside the
+container wants <code>/dev/kvm</code>. On a VM (which this lab host is),
+that means <em>nested</em> virtualization has to be switched on at the
+hypervisor. Without it FortiGate either refuses to boot or falls back to
+pure emulation and takes many minutes per node.</li>
+</ol>
+<hr />
+<h2 id="the-short-version">The short version</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./lab</span> fortigate          <span class="co"># or: ./scripts/03-build-vrnetlab.sh</span></span></code></pre></div>
+<p>That one command does everything below: checks <code>/dev/kvm</code>
+and tells you exactly which hypervisor setting to change if it’s
+missing, installs build dependencies, clones or updates vrnetlab, finds
+your <code>.qcow2</code>, builds, reports the image tag it actually
+produced, and offers to update your topology files to match that tag.
+It’s safe to re-run.</p>
+<p><code>setup.sh</code> also offers it, but only when one of your
+topologies actually references a <code>vrnetlab/</code> image — the
+cEOS-only path never sees the prompt.</p>
+<p>The rest of this document is what that script does, for when you want
+to do it by hand or something goes sideways.</p>
+<hr />
+<h2 id="check-nested-virtualization-first">1. Check nested
+virtualization first</h2>
+<p>Do this before downloading anything — if it’s off, nothing else
+matters.</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> <span class="at">-l</span> /dev/kvm                          <span class="co"># must exist</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-Ec</span> <span class="st">&#39;(vmx|svm)&#39;</span> /proc/cpuinfo      <span class="co"># must be &gt; 0</span></span></code></pre></div>
+<p>If <code>/dev/kvm</code> is missing:</p>
+<ul>
+<li><strong>vSphere / ESXi</strong> — power the VM off, then Edit
+Settings → expand <strong>CPU</strong> → tick <strong>Hardware
+virtualization: Expose hardware assisted virtualization to the guest
+OS</strong>. Power back on. (<code>docs/vcenter-vm-setup.md</code>
+builds the VM without this, since cEOS doesn’t need it.)</li>
+<li><strong>Proxmox</strong> — set the VM’s CPU type to
+<code>host</code> and make sure nesting is enabled on the Proxmox host.
+See <code>docs/proxmox-vm-setup.md</code>.</li>
+</ul>
+<h2 id="get-the-qcow2">2. Get the qcow2</h2>
+<p><strong>Team Drive (internal mirror):</strong> <a
+href="https://drive.google.com/drive/folders/1kBDv_xgv4T4NQJfWZtLKkCnYbmcfs9KU?usp=drive_link"
+class="uri">https://drive.google.com/drive/folders/1kBDv_xgv4T4NQJfWZtLKkCnYbmcfs9KU?usp=drive_link</a>
+→
+<code>ContainerLab/Fortigate Images/fortinet-FGT-v7.0.9-build0444.qcow2</code></p>
+<p><strong>Or from the vendor</strong>, if you’d rather pull it yourself
+or need a different build: <a href="https://support.fortinet.com"
+class="uri">https://support.fortinet.com</a> → Download → VM Images →
+select the KVM image for your version.</p>
+<p>Either way you need a valid Fortinet entitlement to use the image —
+the mirror is a convenience for people who already have one, not a way
+around licensing.</p>
+<p>Copy it to the lab host:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">scp</span> fortinet-FGT-v7.0.9-build0444.qcow2 <span class="op">&lt;</span>you<span class="op">&gt;</span>@<span class="op">&lt;</span>VM-IP<span class="op">&gt;</span>:~/</span></code></pre></div>
+<h2 id="build-the-container-image">3. Build the container image</h2>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> apt-get install <span class="at">-y</span> make git qemu-kvm</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/hellt/vrnetlab.git ~/vrnetlab</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/vrnetlab</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span>                       <span class="co"># find the FortiGate directory for your vrnetlab version</span></span></code></pre></div>
+<p>The directory name has changed across vrnetlab releases — current
+trees use <code>fortinet_fortigate/</code>, older ones
+<code>fortios/</code>. Use whichever your clone has:</p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/vrnetlab/fortinet_fortigate      <span class="co"># or fortios/ on older trees</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> ~/fortinet-FGT-v7.0.9-build0444.qcow2 .</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span></span></code></pre></div>
+<p>The build boots the VM once to prepare it, so it takes a few
+minutes.</p>
+<h2 id="match-the-tag-to-your-topology">4. Match the tag to your
+topology</h2>
+<p><strong>This is the step people miss.</strong> vrnetlab’s image tag
+has also changed across versions — newer trees produce
+<code>vrnetlab/fortinet_fortigate:&lt;version&gt;</code>, older ones
+<code>vrnetlab/vr-fortios:&lt;version&gt;</code>. Check what you
+actually got:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> images <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-i</span> forti</span></code></pre></div>
+<p>Then make <code>topologies/memory-test.clab.yml</code> agree with
+it:</p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">kinds</span><span class="kw">:</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">fortinet_fortigate</span><span class="kw">:</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">image</span><span class="kw">:</span><span class="at"> vrnetlab/vr-fortios:7.0.9</span><span class="co">      # &lt;- must match `docker images`</span></span></code></pre></div>
+<p>A mismatch here produces exactly the “not available locally” stop
+from <code>02-deploy-lab.sh</code>, which is the intended behaviour —
+it’s telling you the truth.</p>
+<h2 id="deploy">5. Deploy</h2>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./lab</span> topo memory-test.clab.yml</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./lab</span> deploy</span></code></pre></div>
+<p>FortiGate nodes boot far more slowly than cEOS — allow several
+minutes before the management interface answers.
+<code>./lab status</code> shows when the containers are up; the VM
+inside takes longer still.</p>
+<p>Default credentials on a fresh FortiGate VM are <code>admin</code>
+with an <strong>empty</strong> password, and it forces a password change
+on first login. That’s a different account from the cEOS nodes’
+<code>admin</code>/<code>admin</code>.</p>
+<hr />
+<h2 id="resource-cost">Resource cost</h2>
+<p>A FortiGate VM node is much heavier than a cEOS node — roughly 1–2 GB
+RAM each plus QEMU overhead, against ~0.5–1 GB for cEOS.
+<code>memory-test.clab.yml</code> runs two of them alongside four cEOS
+nodes and four small containers; budget around 8–10 GB of the VM’s 32
+GB, and destroy the lab when you stop for the day.</p>
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>05-vxlan-evpn</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="google-sans-flex.css" />
+</head>
+<body>
+<h1 id="module-05-vxlan-evpn-overlay">Module 05 — VXLAN + EVPN
+Overlay</h1>
+<p><strong>Goal:</strong> stretch a Layer-2 segment between leaf1 and
+leaf2 across the routed fabric using VXLAN, with BGP EVPN as the control
+plane — then, as the capstone, automate it with the module 04 model.</p>
+<p>This is the payoff module. Everything before it was substrate: the
+fabric exists (03) and configures itself (04) <em>so that</em> this can
+run on top.</p>
+<hr />
+<h2 id="the-problem-in-one-paragraph">1. The problem, in one
+paragraph</h2>
+<p>Your underlay is beautiful and entirely Layer 3 — which means a VLAN
+on leaf1 cannot exist on leaf2. But workloads (VM migration, clustering,
+legacy apps) keep demanding L2 adjacency between endpoints in different
+racks. The old answer was stretching VLANs with trunks and spanning-tree
+across the fabric, which un-solves everything module 03 solved. The
+modern answer: keep the fabric routed, and <strong>tunnel</strong> L2
+frames inside UDP packets between leaves. That’s VXLAN. Each leaf gets a
+<strong>VTEP</strong> (tunnel endpoint — its loopback), and a
+<strong>VNI</strong> (VXLAN Network Identifier — a VLAN number with 24
+bits of room instead of 12).</p>
+<p>VXLAN alone still needs to learn which MACs live behind which VTEP —
+flood-and-learn works but scales badly. <strong>BGP EVPN</strong>
+replaces it: an address family where leaves <em>advertise</em> their
+MACs/hosts as BGP routes. The spines don’t tunnel anything; they’re
+<strong>route reflectors</strong>, passing EVPN routes between leaves so
+the leaves don’t need a full mesh.</p>
+<p>Underlay (OSPF) moves packets between loopbacks. Overlay (EVPN over
+iBGP) moves <em>reachability information</em>. VXLAN moves the actual
+frames. Three jobs, three layers, deliberately separate.</p>
+<h2 id="give-the-leaves-something-to-bridge">2. Give the leaves
+something to bridge</h2>
+<p>Real deployments bridge servers; we’ll fake two with each leaf’s
+Ethernet3 in VLAN 100 — actually, simpler and just as instructive: we’ll
+verify with the leaves’ own SVIs. On <strong>leaf1</strong>:</p>
+<pre><code>configure terminal
+vlan 100
+   name overlay-test
+interface Vlan100
+   ip address 172.16.100.1/24
+   no autostate</code></pre>
+<p>On <strong>leaf2</strong>, the same with
+<code>172.16.100.2/24</code>. Right now, these two can’t ping each other
+— same subnet, no L2 path. That ping working is this module’s finish
+line.</p>
+<h2 id="evpn-control-plane-all-four-nodes">3. EVPN control plane (all
+four nodes)</h2>
+<p><strong>Spines</strong> — route reflectors. On spine1 (spine2: swap
+in <code>10.255.0.2</code>):</p>
+<pre><code>service routing protocols model multi-agent
+!
+router bgp 65000
+   router-id 10.255.0.1
+   no bgp default ipv4-unicast
+   neighbor EVPN-PEERS peer group
+   neighbor EVPN-PEERS remote-as 65000
+   neighbor EVPN-PEERS update-source Loopback0
+   neighbor EVPN-PEERS route-reflector-client
+   neighbor EVPN-PEERS send-community extended
+   neighbor 10.255.0.11 peer group EVPN-PEERS
+   neighbor 10.255.0.12 peer group EVPN-PEERS
+   !
+   address-family evpn
+      neighbor EVPN-PEERS activate</code></pre>
+<p><strong>Leaves</strong> — clients, peering to both spines. On leaf1
+(leaf2: router-id <code>10.255.0.12</code>):</p>
+<pre><code>service routing protocols model multi-agent
+!
+router bgp 65000
+   router-id 10.255.0.11
+   no bgp default ipv4-unicast
+   neighbor EVPN-PEERS peer group
+   neighbor EVPN-PEERS remote-as 65000
+   neighbor EVPN-PEERS update-source Loopback0
+   neighbor EVPN-PEERS send-community extended
+   neighbor 10.255.0.1 peer group EVPN-PEERS
+   neighbor 10.255.0.2 peer group EVPN-PEERS
+   !
+   address-family evpn
+      neighbor EVPN-PEERS activate</code></pre>
+<p>Reading notes, because copying without reading is banned here:
+<code>multi-agent</code> is the EOS routing process model EVPN requires
+(on real hardware it needs a restart; cEOS just takes it — if EVPN
+routes mysteriously don’t appear later, <code>write mem</code> and
+redeploy the lab, the saved config boots with it active).
+<code>update-source Loopback0</code> is why module 03 obsessed over
+loopback reachability — these sessions ride the underlay between /32s.
+<code>no bgp default ipv4-unicast</code> keeps this BGP instance purely
+for EVPN; OSPF still owns the underlay. One AS, iBGP, spines as RRs —
+the classic simple EVPN design.</p>
+<p><strong>Checkpoint before continuing</strong> — on a spine:</p>
+<pre><code>show bgp evpn summary</code></pre>
+<p>Both leaves <code>Estab</code>. Not established? It’s underlay
+reachability 90% of the time:
+<code>ping 10.255.0.11 source 10.255.0.1</code>, and check OSPF is still
+FULL. Fix the underlay first, always.</p>
+<h2 id="vxlan-data-plane-leaves-only">4. VXLAN data plane (leaves
+only)</h2>
+<p>On <strong>both</strong> leaves, identically:</p>
+<pre><code>interface Vxlan1
+   vxlan source-interface Loopback0
+   vxlan udp-port 4789
+   vxlan vlan 100 vni 10100
+!
+router bgp 65000
+   vlan 100
+      rd auto
+      route-target both 10100:100
+      redistribute learned</code></pre>
+<p>That maps VLAN 100 ↔︎ VNI 10100, anchors the tunnel on Loopback0, and
+tells BGP to advertise MACs learned in VLAN 100 into EVPN with a
+route-target both leaves import.</p>
+<h2 id="the-finish-line">5. The finish line</h2>
+<p>From leaf1:</p>
+<pre><code>ping 172.16.100.2</code></pre>
+<p>If that answers, an L2 frame just got VXLAN-encapsulated on leaf1,
+routed across your OSPF fabric as UDP, and decapsulated on leaf2. Prove
+to yourself it’s real, not magic:</p>
+<pre><code>show bgp evpn route-type mac-ip     ! leaf2&#39;s MAC, learned via BGP, next-hop = leaf2&#39;s VTEP
+show vxlan address-table            ! remote MACs and which VTEP they live behind
+show interfaces Vxlan1              ! VNI up, flood list = the other VTEP
+traceroute 172.16.100.2             ! one hop! the fabric is invisible to the overlay</code></pre>
+<p>That one-hop traceroute is the whole concept in a single line: the
+overlay thinks it’s a cable; the underlay did all the work.</p>
+<p>Then break it the instructive way: <code>shutdown</code> leaf1’s
+Ethernet1 and ping again — still works, the <em>tunnel</em> rerouted
+over spine2 because the underlay reconverged and the overlay never
+noticed. That indirection is why data centers are built this way.</p>
+<h2 id="capstone-automate-it">6. Capstone: automate it</h2>
+<p>You just typed near-identical config on four nodes again. You know
+what happens now. Build, using module 04’s exact model:</p>
+<ol type="1">
+<li><code>templates/spineleaf_evpn.j2</code> — the config above with
+holes. Design the template to handle both roles
+(<code>{% if host.data.role == "spine" %}</code> for the RR block) or
+make two templates; both are defensible, pick one and be able to say
+why.</li>
+<li>An <code>EVPN</code> data dict — router-ids, peer lists, and
+per-leaf VLAN/VNI/SVI values.</li>
+<li><code>06_spineleaf_evpn.py</code> — copy
+<code>05_spineleaf_underlay.py</code>, point it at your template and
+data.</li>
+</ol>
+<p>Definition of done — the same bar every module 04 script met:</p>
+<ul class="task-list">
+<li><label><input type="checkbox" />Fresh fabric (destroy, delete
+<code>clab-spineleaf/</code>, deploy) reaches “SVI pings SVI” by running
+<strong>exactly two scripts</strong>: <code>05</code> then
+<code>06</code></label></li>
+<li><label><input type="checkbox" />Both scripts, run a second time:
+<code>changed=False</code> everywhere</label></li>
+<li><label><input type="checkbox" />Stretch: extend module 04’s
+<code>verify_fabric.py</code> to also assert EVPN sessions are
+<code>Estab</code> and the mac-ip route for the far SVI
+exists</label></li>
+</ul>
+<p>That first box is worth pausing on when you tick it: <strong>a
+two-command, reproducible, self-verifying EVPN fabric.</strong> That’s
+not a lab trick — that’s how modern data center networks are actually
+operated, and you just built one end to end.</p>
+<h2 id="what-you-learned">What you learned</h2>
+<p>Overlay/underlay separation and why each layer stays ignorant of the
+other; VTEPs, VNIs, and EVPN as a BGP address family; spines as route
+reflectors; the debugging hierarchy (underlay first, control plane
+second, data plane last); and — via the capstone — that the automation
+model from module 04 didn’t change at all when the config got 10x more
+sophisticated. Template, data, idempotent push. It never changes.</p>
+<p>Next (optional): <a href="06-secrets.md">Module 06 — Secrets</a></p>
+</body>
+</html>

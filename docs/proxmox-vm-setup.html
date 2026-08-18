@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>proxmox-vm-setup</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="google-sans-flex.css" />
+</head>
+<body>
+<h1 id="building-the-lab-vm-on-proxmox">Building the Lab VM on
+Proxmox</h1>
+<p>The same lab, on a Proxmox home-lab host instead of corporate
+vCenter. Everything after the VM exists is identical —
+<code>./setup.sh</code> doesn’t care what hypervisor it’s running
+on.</p>
+<hr />
+<h2 id="vm-or-lxc-container">VM or LXC container?</h2>
+<p><strong>Use a VM.</strong> This one isn’t close, and it’s worth
+understanding why, because “just use an LXC, it’s lighter” is usually
+good advice on Proxmox and this is a real exception.</p>
+<p>Containerlab isn’t just running Docker containers — it’s building
+virtual network topologies. It creates veth pairs, moves interfaces
+between network namespaces, sets sysctls, manages bridges, and cEOS
+itself wants to behave like a switch inside its container. That’s a pile
+of privileged kernel-level networking operations.</p>
+<p>Running that inside an LXC means nesting: Docker’s containers inside
+a Proxmox container, both sharing the host’s kernel. To make it work you
+progressively turn off the things that make LXC worth using —
+<code>nesting=1</code>, <code>keyctl=1</code>, often
+<code>fuse=1</code>, and frequently ending at
+<code>lxc.apparmor.profile: unconfined</code> and dropped capability
+restrictions. At that point you have something less isolated than a VM
+and less secure than a normal LXC, and Proxmox’s own position is that
+nested-container setups aren’t tested and may break across major version
+upgrades.</p>
+<p>There’s also a practical angle: when a lab topology misbehaves, you
+want to be debugging <strong>OSPF adjacencies</strong>, not whether the
+problem is a veth that couldn’t be created because of a namespace
+restriction three layers down. A VM removes that entire category of
+confusion.</p>
+<p>The overhead you’re paying for that is roughly 5–15% CPU and a few
+hundred MB of RAM for the guest kernel. On a home lab host that’s a fine
+trade for “it just works.”</p>
+<blockquote>
+<p>LXC is still the right call for most of your other home-lab services
+— this is specifically about workloads that manipulate kernel
+networking.</p>
+</blockquote>
+<hr />
+<h2 id="vm-settings">VM settings</h2>
+<p>Proxmox web UI → <strong>Create VM</strong>.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Tab</th>
+<th>Setting</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>General</td>
+<td>Name</td>
+<td><code>clab-lab</code> (or whatever)</td>
+</tr>
+<tr>
+<td>OS</td>
+<td>ISO image</td>
+<td>Debian 13 (Trixie) — see note below</td>
+</tr>
+<tr>
+<td>System</td>
+<td>Machine</td>
+<td><code>q35</code></td>
+</tr>
+<tr>
+<td>System</td>
+<td>BIOS</td>
+<td>OVMF (UEFI) or SeaBIOS, either is fine</td>
+</tr>
+<tr>
+<td>System</td>
+<td>Qemu Agent</td>
+<td>✔ Enable (then <code>apt install qemu-guest-agent</code> in the
+guest)</td>
+</tr>
+<tr>
+<td>Disks</td>
+<td>Bus/Device</td>
+<td><strong>VirtIO Block</strong> (or SCSI w/ VirtIO SCSI single)</td>
+</tr>
+<tr>
+<td>Disks</td>
+<td>Size</td>
+<td>64 GB, and check <strong>Discard</strong> if on SSD/ZFS</td>
+</tr>
+<tr>
+<td>CPU</td>
+<td>Cores</td>
+<td>8 (or as many as you can spare)</td>
+</tr>
+<tr>
+<td>CPU</td>
+<td>Type</td>
+<td><strong><code>host</code></strong> — see note</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>RAM</td>
+<td>16–32 GB (see sizing below)</td>
+</tr>
+<tr>
+<td>Network</td>
+<td>Model</td>
+<td><strong>VirtIO (paravirtualized)</strong></td>
+</tr>
+<tr>
+<td>Network</td>
+<td>Bridge</td>
+<td><code>vmbr0</code> (your LAN bridge, so it gets a DHCP lease you can
+SSH to)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>CPU type <code>host</code></strong> matters — it passes your
+real CPU flags through instead of emulating a generic model. Not
+strictly required for cEOS (it’s a container, no nested virtualization
+involved), but if you later want <strong>vrnetlab</strong> to run true
+VM-based images (Cisco IOS-XE, Juniper vMX, Palo Alto), those need
+nested virt, which needs <code>host</code> plus nesting enabled on the
+Proxmox host:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># on the Proxmox host, check nested virt is on:</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /sys/module/kvm_intel/parameters/nested   <span class="co"># or kvm_amd</span></span></code></pre></div>
+<p><strong>RAM sizing:</strong> each cEOS node wants 0.5–1 GB. 16 GB
+comfortably runs the 2-node test lab plus a 6-router ring; go to 32 GB
+if you want a full spine-leaf with room to spare. Leave
+<strong>ballooning off</strong> — you don’t want memory pulled out from
+under running network nodes.</p>
+<hr />
+<h2 id="getting-a-debian-13-iso">Getting a Debian 13 ISO</h2>
+<p>Proxmox has no built-in Debian image, so upload one:</p>
+<ol type="1">
+<li>Download the <strong>DVD-1</strong> ISO from
+https://www.debian.org/distrib/ (not netinst — netinst needs working
+internet mid-install and leaves you with a bare system if the network
+isn’t up yet).</li>
+<li>Proxmox UI → your node → <strong>local (storage)</strong> →
+<strong>ISO Images</strong> → <strong>Upload</strong>.</li>
+</ol>
+<p>Or pull it directly on the Proxmox host, which is usually faster:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> /var/lib/vz/template/iso</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">wget</span> https://cdimage.debian.org/debian-cd/current/amd64/iso-dvd/debian-13.6.0-amd64-DVD-1.iso</span></code></pre></div>
+<p>(check the current filename at that URL first — point releases
+change)</p>
+<h2 id="installing-debian">Installing Debian</h2>
+<p>Standard installer. The only choices that matter:</p>
+<ul>
+<li><strong>Software selection:</strong> uncheck all desktop
+environments; keep <strong>SSH server</strong> and <strong>standard
+system utilities</strong></li>
+<li><strong>Partitioning:</strong> guided, use entire disk — it’s a lab
+VM</li>
+</ul>
+<p>After first boot:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> apt install <span class="at">-y</span> qemu-guest-agent</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> systemctl enable <span class="at">--now</span> qemu-guest-agent</span></code></pre></div>
+<p>That’s what makes the Proxmox UI show the VM’s IP address and lets it
+do clean shutdowns.</p>
+<hr />
+<h2 id="then-what">Then what?</h2>
+<p>Find the VM’s IP (Proxmox <strong>Summary</strong> tab shows it once
+the guest agent is running, or <code>ip a</code> in the console), SSH
+in, and follow the main <a
+href="../README.md"><code>README.md</code></a> Quick Start — get the
+files onto the VM per <a
+href="distributing.md"><code>distributing.md</code></a>, then:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/clab-bootstrap</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./setup.sh</span></span></code></pre></div>
+<p><code>setup.sh</code> installs everything else: <code>gum</code>
+(offered, optional), <code>uv</code>, Docker CE, Containerlab, the
+Python automation tooling, and it can deploy the test topology and walk
+you through the automation demo.</p>
+<h3 id="differences-from-the-vmware-build">Differences from the VMware
+build</h3>
+<p>Barely any, and none you have to act on:</p>
+<ul>
+<li><strong>Interface name</strong> is <code>ens18</code> (VirtIO)
+instead of <code>ens192</code> (VMXNET3). The scripts detect this rather
+than hardcoding it, and DHCP from your home router means there’s no
+manual network config to do at all — the whole
+<code>/etc/network/interfaces</code> dance in the original build notes
+was a workaround for a corporate network that isn’t your problem
+here.</li>
+<li><strong>No jump host, no DNAT, no VPN.</strong> The VM is on your
+LAN, you SSH straight to it. The “Access Architecture” contortions in
+the original MOP were entirely about getting through corporate network
+segmentation.</li>
+<li><strong>You control the hypervisor</strong>, so snapshots are free —
+take one after <code>setup.sh</code> finishes and before you start
+breaking things in labs. That’s genuinely the biggest quality-of-life
+win over the work VM.</li>
+</ul>
+</body>
+</html>

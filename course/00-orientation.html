@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>00-orientation</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="google-sans-flex.css" />
+</head>
+<body>
+<h1 id="module-00-orientation-the-map">Module 00 — Orientation: The
+Map</h1>
+<p>This repo has a lot in it. That’s deliberate — it’s a toolbox, not a
+single tool — but toolboxes are confusing until someone tells you which
+drawer holds what. This module is that.</p>
+<p>Read it once now (10 minutes), then come back to it whenever you’re
+mid-lab thinking <em>“which file do I even edit for this?”</em></p>
+<hr />
+<h2 id="the-two-planes-the-single-most-important-idea">1. The two planes
+(the single most important idea)</h2>
+<p>Everything in this repo belongs to one of two planes, and confusing
+them is the #1 way people get lost:</p>
+<pre><code>┌─────────────────────────────────────────────────────────────────┐
+│  TOPOLOGY PLANE — &quot;what does the network LOOK like?&quot;            │
+│                                                                 │
+│  Which devices exist, what image they run, how they&#39;re cabled.  │
+│  Owned by:  topologies/*.clab.yml                               │
+│  Changed by: edit YAML -&gt; containerlab destroy -&gt; deploy        │
+│  Think:     racking hardware and running cables                 │
+├─────────────────────────────────────────────────────────────────┤
+│  CONFIG PLANE — &quot;what do the devices SAY?&quot;                      │
+│                                                                 │
+│  Interface IPs, OSPF, BGP, VLANs, VXLAN — the running-config.   │
+│  Owned by:  automation/nornir/templates/*.j2 + data in scripts  │
+│  Changed by: edit template/data -&gt; run the script (no redeploy) │
+│  Think:     SSHing in and typing configure terminal             │
+└─────────────────────────────────────────────────────────────────┘</code></pre>
+<p>The workflows are completely different:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th></th>
+<th>Topology change</th>
+<th>Config change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Example</td>
+<td>“add a third leaf”</td>
+<td>“change leaf1’s loopback IP”</td>
+</tr>
+<tr>
+<td>Edit</td>
+<td><code>topologies/spine-leaf.clab.yml</code></td>
+<td>template or data dict in <code>automation/nornir/</code></td>
+</tr>
+<tr>
+<td>Apply</td>
+<td><code>destroy</code> then <code>deploy</code> (containers are
+replaced)</td>
+<td>run the Nornir script (devices stay up)</td>
+</tr>
+<tr>
+<td>Disruptive?</td>
+<td>Yes — nodes reboot</td>
+<td>No — NAPALM merges the diff</td>
+</tr>
+<tr>
+<td>Then</td>
+<td>re-run <code>link-inventory.sh</code> (mgmt IPs changed)</td>
+<td>verify with show commands</td>
+</tr>
+</tbody>
+</table>
+<p>A topology change <strong>invalidates the inventory</strong> (new
+containers, new management IPs), which is why
+<code>link-inventory.sh</code> exists and why it runs after every
+deploy. A config change touches nothing but the devices.</p>
+<hr />
+<h2 id="the-file-map">2. The file map</h2>
+<p>What every file is, one line each, grouped by when you touch it.</p>
+<h3 id="you-run-these-entry-points">You run these (entry points)</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>File</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>setup.sh</code></td>
+<td>Guided interactive setup — the “just make it work” path. Run
+once.</td>
+</tr>
+<tr>
+<td><code>./lab</code></td>
+<td>The day-to-day driver: status / deploy / ssh / cli / graph / destroy
+/ topo. Run it bare for a menu. This is the one to remember.</td>
+</tr>
+<tr>
+<td><code>scripts/00-bootstrap.sh</code></td>
+<td>Installs Docker, Containerlab, Python env. Idempotent.</td>
+</tr>
+<tr>
+<td><code>scripts/01-import-ceos.sh</code></td>
+<td>Verifies the cEOS tarball’s hash, imports into Docker</td>
+</tr>
+<tr>
+<td><code>scripts/02-deploy-lab.sh</code></td>
+<td>Deploy / destroy / inspect / graph a topology. Checks images exist
+locally first.</td>
+</tr>
+<tr>
+<td><code>scripts/03-build-vrnetlab.sh</code></td>
+<td>Builds VM-based node images (FortiGate) from a vendor
+<code>.qcow2</code> via vrnetlab. Needs nested virt.</td>
+</tr>
+<tr>
+<td><code>scripts/sync-labs.sh</code></td>
+<td>Copies/updates <code>~/labs/topologies</code> from the repo, leaving
+files you’ve edited alone</td>
+</tr>
+<tr>
+<td><code>automation/link-inventory.sh</code></td>
+<td>Points Nornir &amp; Ansible at the <em>current</em> lab’s
+inventory</td>
+</tr>
+</tbody>
+</table>
+<h3 id="you-edit-these-topology-plane">You edit these (topology
+plane)</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>File</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>topologies/testlab.clab.yml</code></td>
+<td>2-node smoke test. Don’t grow this one — copy it.</td>
+</tr>
+<tr>
+<td><code>topologies/spine-leaf.clab.yml</code></td>
+<td>The course fabric: 2 spines, 2 leaves</td>
+</tr>
+<tr>
+<td><code>topologies/memory-test.clab.yml</code></td>
+<td>Bigger mixed lab: 2x FortiGate + 4x cEOS + FRR “ISPs” + hosts. Needs
+the vrnetlab image built first.</td>
+</tr>
+<tr>
+<td><em>(yours)</em> <code>topologies/&lt;name&gt;.clab.yml</code></td>
+<td>Copy an existing one and go</td>
+</tr>
+</tbody>
+</table>
+<h3 id="you-edit-these-config-plane">You edit these (config plane)</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>File</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>automation/nornir/templates/*.j2</code></td>
+<td>Jinja2 config templates — the <em>shape</em> of device config</td>
+</tr>
+<tr>
+<td><code>FABRIC</code> / <code>DEMO_DATA</code> dicts in the
+<code>0*.py</code> scripts</td>
+<td>Per-device values the templates consume — the <em>data</em></td>
+</tr>
+<tr>
+<td><code>automation/nornir/0*_*.py</code></td>
+<td>The scripts that render + push. Numbered = course order.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="you-mostly-leave-these-alone-plumbing">You mostly leave these
+alone (plumbing)</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>File</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>automation/nornir/config.yaml</code></td>
+<td>Tells Nornir where the inventory is. Set once.</td>
+</tr>
+<tr>
+<td><code>automation/nornir/nornir-simple-inventory.yml</code></td>
+<td><strong>A symlink.</strong> Containerlab regenerates the real file
+every deploy; never edit it.</td>
+</tr>
+<tr>
+<td><code>automation/nornir/creds.py</code></td>
+<td>Reads <code>NORNIR_USERNAME/PASSWORD</code> env vars if set, else
+no-op</td>
+</tr>
+<tr>
+<td><code>automation/pyproject.toml</code></td>
+<td>Python deps (uv’s source of truth)</td>
+</tr>
+<tr>
+<td><code>automation/requirements.txt</code></td>
+<td>Same deps, for the pip fallback</td>
+</tr>
+<tr>
+<td><code>lib/ui.sh</code></td>
+<td>The gum/plain-bash UI helpers <code>setup.sh</code> and
+<code>./lab</code> use</td>
+</tr>
+</tbody>
+</table>
+<h3 id="two-conventions-worth-knowing">Two conventions worth
+knowing</h3>
+<p><strong>Image tags.</strong> Topologies reference
+<code>ceos:latest</code>, not a pinned version — everyone downloads a
+different cEOS build from Arista, so <code>01-import-ceos.sh</code> tags
+whatever you import as both <code>ceos:&lt;version&gt;</code> and
+<code>ceos:latest</code>. <code>docker images</code> still shows the
+real version. Get the images from the <a
+href="https://drive.google.com/drive/folders/1kBDv_xgv4T4NQJfWZtLKkCnYbmcfs9KU?usp=drive_link">team
+Drive</a> or the vendor portals.</p>
+<p><strong>Two copies of every topology.</strong> The repo has
+<code>topologies/</code>, and <code>~/labs/topologies/</code> is the
+working copy <code>02-deploy-lab.sh</code> actually deploys from.
+<code>sync-labs.sh</code> keeps them in step — it updates copies it
+installed and leaves ones you’ve edited alone. If a change to a topology
+seems to have no effect, this is why.</p>
+<h3 id="optional-drawers-open-when-the-course-says-to">Optional drawers
+(open when the course says to)</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>File</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>automation/nornir/SECRETS.md</code> +
+<code>run-with-*.sh</code> + <code>secrets.example.yaml</code> +
+<code>.env.example</code></td>
+<td>Module 06: three credential backends for the Nornir path</td>
+</tr>
+<tr>
+<td><code>automation/ansible/**</code></td>
+<td>The whole Ansible alternative: <code>ansible.cfg</code>, playbooks,
+<code>group_vars/ceos/</code> (incl. Vault)</td>
+</tr>
+<tr>
+<td><code>automation/lib/vault.py</code></td>
+<td>Lets Python scripts read the Ansible Vault file too</td>
+</tr>
+<tr>
+<td><code>docs/vrnetlab-fortigate.md</code></td>
+<td>Building FortiGate (and other VM-based nodes) with vrnetlab,
+incl. the nested-virt hypervisor setting</td>
+</tr>
+<tr>
+<td><code>docs/*.md</code></td>
+<td>VM builds (vCenter / Proxmox) and how to distribute this repo</td>
+</tr>
+</tbody>
+</table>
+<h3 id="generated-at-runtime-never-in-git-never-hand-edited">Generated
+at runtime (never in git, never hand-edited)</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Path</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>clab-&lt;labname&gt;/</code> (next to the topology file)</td>
+<td>Containerlab’s working dir: node startup-configs, TLS certs,
+<strong>the generated inventories</strong></td>
+</tr>
+<tr>
+<td><code>~/.venvs/netauto/</code></td>
+<td>The Python environment (<code>netauto</code> alias activates
+it)</td>
+</tr>
+<tr>
+<td><code>/tmp/clab-setup.log</code></td>
+<td>Everything <code>setup.sh</code> did, when you need to know why it
+failed</td>
+</tr>
+<tr>
+<td><code>~/labs/topologies/</code></td>
+<td>The working copies you actually deploy; <code>sync-labs.sh</code>
+keeps them current</td>
+</tr>
+<tr>
+<td><code>~/vrnetlab/</code></td>
+<td>vrnetlab clone, if you’ve built a VM-based node image</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="the-decision-tree">3. The decision tree</h2>
+<p>Start at the top, follow your situation down.</p>
+<pre><code>&quot;I want to...&quot;
+│
+├─ ...set up a fresh VM / fix a broken install
+│     └─&gt; ./setup.sh            (re-running is safe; done steps are skipped)
+│
+├─ ...change WHAT DEVICES EXIST or HOW THEY&#39;RE CABLED
+│     └─&gt; edit topologies/&lt;lab&gt;.clab.yml
+│         ./scripts/02-deploy-lab.sh topologies/&lt;lab&gt;.clab.yml destroy
+│         ./scripts/02-deploy-lab.sh topologies/&lt;lab&gt;.clab.yml
+│         ./automation/link-inventory.sh &lt;path-to-clab-&lt;labname&gt;&gt;
+│               (mgmt IPs changed -&gt; inventory must be re-linked)
+│
+├─ ...change WHAT THE DEVICES ARE CONFIGURED WITH
+│     │
+│     ├─ one-off / exploring?  -&gt;  ssh admin@clab-&lt;lab&gt;-&lt;node&gt;, configure by hand
+│     │                            (fine for learning; it&#39;s what module 03 does)
+│     │
+│     └─ repeatable / at scale? -&gt; edit the .j2 template (config SHAPE changed)
+│                                  and/or the data dict   (VALUES changed)
+│                                  then: python3 0X_&lt;script&gt;.py
+│                                  run twice — 2nd run must say changed=False
+│
+├─ ...just LOOK at the running lab
+│     ├─ table of nodes+IPs:   ./scripts/02-deploy-lab.sh &lt;topo&gt; inspect
+│     ├─ visual map:           ./scripts/02-deploy-lab.sh &lt;topo&gt; graph
+│     │                          then browse to http://&lt;vm-ip&gt;:50080
+│     ├─ resource usage:       docker stats
+│     └─ a node&#39;s boot logs:   docker logs clab-&lt;lab&gt;-&lt;node&gt;
+│
+├─ ...get INTO a device
+│     ├─ normal:               ssh admin@clab-&lt;lab&gt;-&lt;node&gt;     (pw: admin)
+│     └─ SSH broken/locked out: docker exec -it clab-&lt;lab&gt;-&lt;node&gt; Cli
+│
+├─ ...stop for the day
+│     └─&gt; on each node: write memory
+│         ./scripts/02-deploy-lab.sh &lt;topo&gt; destroy
+│         (configs survive in clab-&lt;labname&gt;/ — next deploy restores them)
+│
+├─ ...start FRESH, discarding all saved configs
+│     └─&gt; destroy, then delete the clab-&lt;labname&gt;/ directory, then deploy
+│
+└─ ...stop using default admin/admin credentials
+      └─&gt; Module 06 / automation/nornir/SECRETS.md</code></pre>
+<hr />
+<h2 id="checkpoint">4. Checkpoint</h2>
+<p>You’re done with this module when you can answer these without
+looking:</p>
+<ol type="1">
+<li>You want to add a third leaf. Which plane is that, which file do you
+edit, and what two commands follow — plus the one people forget?</li>
+<li>You want to change the OSPF process ID everywhere. Template, data,
+or topology file?</li>
+<li>Why must you never hand-edit
+<code>nornir-simple-inventory.yml</code>?</li>
+</ol>
+<details>
+<summary>
+Answers
+</summary>
+<ol type="1">
+<li>Topology plane → <code>topologies/spine-leaf.clab.yml</code> →
+destroy, deploy — and then <code>link-inventory.sh</code>, because the
+management IPs changed.</li>
+<li>Template (<code>spineleaf_underlay.j2</code>) — the process ID is
+config <em>shape</em> shared by all devices, not a per-device
+value.</li>
+<li>It’s a symlink to a file Containerlab regenerates on every deploy;
+your edits would be silently obliterated next deploy.</li>
+</ol>
+</details>
+<p>Next: <a href="01-platform.md">Module 01 — The platform</a></p>
+</body>
+</html>

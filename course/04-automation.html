@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>04-automation</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="google-sans-flex.css" />
+</head>
+<body>
+<h1 id="module-04-automation">Module 04 — Automation</h1>
+<p><strong>Goal:</strong> replace module 03’s hand-typing with one
+idempotent script, understand the template + data model well enough to
+modify it, and write your first bespoke Nornir script from scratch.</p>
+<p>If you took Aston’s original automation course, this is the same
+Netmiko → Nornir → NAPALM arc — but pointed at the fabric you just built
+instead of GNS3 behind a jump box, and with zero inventory or credential
+setup, because Containerlab generates all of that on every deploy.</p>
+<hr />
+<h2 id="link-the-inventory-30-seconds-easy-to-forget">1. Link the
+inventory (30 seconds, easy to forget)</h2>
+<p>Containerlab wrote a fresh Nornir inventory when you deployed the
+fabric — management IPs, default credentials, all of it. Point the
+automation at it:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/clab-bootstrap</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./automation/link-inventory.sh</span> ~/clab-bootstrap/topologies/clab-spineleaf</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># (or wherever clab-spineleaf landed — the deploy output printed it)</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">netauto</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> automation/nornir</span></code></pre></div>
+<p>This is the step from module 00’s decision tree that follows
+<em>every</em> topology deploy. Forget it and your scripts talk to the
+previous lab’s IPs, with confusing results.</p>
+<h2 id="the-ladder-in-twenty-minutes">2. The ladder, in twenty
+minutes</h2>
+<p>Run scripts 01–03 in order against the fabric. Each is one rung; read
+each script’s docstring — they’re short — before running it.</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> 01_netmiko_hello.py     <span class="co"># rung 1: one SSH session, one command, print</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> 02_nornir_scale.py      <span class="co"># rung 2: same task, ALL FOUR nodes, concurrent</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> 03_napalm_facts.py      <span class="co"># rung 3: structured JSON instead of scraped text</span></span></code></pre></div>
+<p>What to actually notice at each rung:</p>
+<ul>
+<li><strong>01 → 02:</strong> the task logic didn’t change; the
+<em>scale</em> did. Nornir owns the inventory and the threading, so four
+devices or four hundred is the same script. This is why frameworks
+exist.</li>
+<li><strong>02 → 03:</strong> compare the outputs. 02 gave you text
+you’d have to regex (fragile — one EOS wording change breaks it). 03
+gives you dicts with keys. Structured data is what makes the next rung
+<em>possible</em>: you can’t diff prose, but you can diff data.</li>
+</ul>
+<h2 id="rung-4-the-underlay-declaratively">3. Rung 4: the underlay,
+declaratively</h2>
+<p>Module 03’s checkpoint left the fabric hand-configured and saved.
+Now:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> 05_spineleaf_underlay.py</span></code></pre></div>
+<p>Read the output carefully. For any node where your hand-typed config
+already matches the desired state exactly: <code>changed=False</code>,
+nothing sent. Where you deviated — a missing description, a typo’d mask
+— you’ll see a <strong>diff of exactly the delta</strong>, and only that
+delta was pushed. Then:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> 05_spineleaf_underlay.py     <span class="co"># again</span></span></code></pre></div>
+<p>All nodes: <code>changed=False</code>. Run it fifty times; still
+nothing. This is <strong>idempotency</strong> — the script describes a
+<em>goal</em>, not a list of steps — and it’s the single concept that
+separates real network automation from “a script that types fast.” A
+fast-typing script run twice configures everything twice. This one run
+twice does nothing, safely.</p>
+<h2 id="open-the-hood-template-data">4. Open the hood: template +
+data</h2>
+<p>Two files produced everything you just watched:</p>
+<p><strong>The template</strong> —
+<code>templates/spineleaf_underlay.j2</code> — is module 03’s config
+with the values replaced by holes:</p>
+<pre class="jinja"><code>interface {{ intf.name }}
+   ip address {{ intf.ip }}</code></pre>
+<p><strong>The data</strong> — the <code>FABRIC</code> dict in
+<code>05_spineleaf_underlay.py</code> — is module 03’s IP plan table, as
+Python. Loopbacks, router-ids, interface lists per node.</p>
+<p>The script is just the plumbing between them: render template with
+host’s data → hand result to NAPALM → NAPALM diffs against the device →
+push the delta if any. That separation is the entire model:</p>
+<blockquote>
+<p><strong>Change the config’s <em>shape</em></strong> (new OSPF timer
+on every node) → edit the <strong>template</strong>. <strong>Change a
+<em>value</em></strong> (leaf2’s loopback) → edit the
+<strong>data</strong>. Either way → run the script → devices converge on
+the goal.</p>
+</blockquote>
+<p>Prove it to yourself — both directions:</p>
+<ol type="1">
+<li><strong>Data change:</strong> in <code>FABRIC</code>, edit leaf2’s
+Ethernet1 description. Run the script: one node changes, three say
+<code>changed=False</code>.</li>
+<li><strong>Template change:</strong> add <code>ip ospf cost 100</code>
+under the interface block in the template. Run: all four nodes change
+(every fabric interface got it). Then delete the line and run again —
+and notice the cost does <strong>not</strong> get removed. Merge-mode
+pushes what’s in the template; it doesn’t remove what isn’t. Clean it up
+by hand (<code>no ip ospf cost</code> on the interfaces, or just note
+it). That asymmetry — merge vs. full config replace — is a real design
+decision in production automation, and now you’ve met it.</li>
+</ol>
+<h2 id="write-your-own-verify_fabric.py">5. Write your own:
+<code>verify_fabric.py</code></h2>
+<p>The scripts so far <em>push</em> config. Just as valuable: scripts
+that <em>check</em> state. Write a bespoke one — a fabric health check
+that prints, per device, its hostname, EOS version, and OSPF neighbor
+count, and flags any device with fewer than 2 neighbors.</p>
+<p>Skeleton to start from (this is <code>02</code> + <code>03</code>’s
+patterns combined):</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">#!/usr/bin/env python3</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co">&quot;&quot;&quot;Fabric health check — my first bespoke Nornir script.&quot;&quot;&quot;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> nornir <span class="im">import</span> InitNornir</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> nornir_napalm.plugins.tasks <span class="im">import</span> napalm_get</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> nornir_netmiko.tasks <span class="im">import</span> netmiko_send_command</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> creds <span class="im">import</span> apply_credential_override</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>EXPECTED_NEIGHBORS <span class="op">=</span> <span class="dv">2</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> check(task):</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    facts <span class="op">=</span> task.run(task<span class="op">=</span>napalm_get, getters<span class="op">=</span>[<span class="st">&quot;facts&quot;</span>])</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    neigh <span class="op">=</span> task.run(task<span class="op">=</span>netmiko_send_command,</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>                     command_string<span class="op">=</span><span class="st">&quot;show ip ospf neighbor | include FULL&quot;</span>)</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    count <span class="op">=</span> <span class="bu">len</span>([l <span class="cf">for</span> l <span class="kw">in</span> neigh.result.splitlines() <span class="cf">if</span> l.strip()])</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    status <span class="op">=</span> <span class="st">&quot;OK &quot;</span> <span class="cf">if</span> count <span class="op">&gt;=</span> EXPECTED_NEIGHBORS <span class="cf">else</span> <span class="st">&quot;FAIL&quot;</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f&quot;[</span><span class="sc">{</span>status<span class="sc">}</span><span class="ss">] </span><span class="sc">{</span>task<span class="sc">.</span>host<span class="sc">.</span>name<span class="sc">}</span><span class="ss">: &quot;</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>          <span class="ss">f&quot;EOS </span><span class="sc">{</span>facts<span class="sc">.</span>result[<span class="st">&#39;facts&#39;</span>][<span class="st">&#39;os_version&#39;</span>]<span class="sc">}</span><span class="ss">, &quot;</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>          <span class="ss">f&quot;</span><span class="sc">{</span>count<span class="sc">}</span><span class="ss"> OSPF neighbors&quot;</span>)</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> main():</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    nr <span class="op">=</span> InitNornir(config_file<span class="op">=</span><span class="st">&quot;config.yaml&quot;</span>)</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    apply_credential_override(nr)</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    nr.run(task<span class="op">=</span>check)</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&quot;__main__&quot;</span>:</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    main()</span></code></pre></div>
+<p>Get it running, then make it yours — ideas in rough difficulty order:
+also verify loopback-to-loopback pings (<code>ping ... source ...</code>
+via netmiko); exit nonzero if anything FAILs (now it’s CI-able); check
+for interfaces that are up but missing a description (a real audit
+people get paid for). Break the fabric (<code>shutdown</code> an uplink)
+and confirm your script catches it — a health check you’ve never seen
+fail isn’t tested.</p>
+<h2 id="checkpoint">6. Checkpoint</h2>
+<ul class="task-list">
+<li><label><input
+type="checkbox" /><code>05_spineleaf_underlay.py</code> twice in a row:
+all <code>changed=False</code></label></li>
+<li><label><input type="checkbox" />You changed a value via
+<strong>data</strong> and a behavior via <strong>template</strong>,
+predicted the blast radius of each before running, and were
+right</label></li>
+<li><label><input type="checkbox" />You can say aloud what NAPALM adds
+over Netmiko (diff + merge against structured config, enabling
+idempotency)</label></li>
+<li><label><input type="checkbox" />Your <code>verify_fabric.py</code>
+runs, and catches a real failure</label></li>
+</ul>
+<h2 id="what-you-learned">What you learned</h2>
+<p>The framework ladder and why each rung exists; idempotency as
+<em>the</em> automation concept; the template/data separation and
+merge-mode’s sneaky asymmetry; and that writing a bespoke Nornir script
+is ~30 lines once the inventory problem is someone else’s. Which, here,
+it permanently is — Containerlab regenerates it every deploy.</p>
+<p>Next: <a href="05-vxlan-evpn.md">Module 05 — VXLAN + EVPN</a></p>
+</body>
+</html>

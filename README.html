@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>README</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="google-sans-flex.css" />
+</head>
+<body>
+<h1
+id="containerlab-network-automation-sandbox-setup-guide">Containerlab
+Network Automation Sandbox — Setup Guide</h1>
+<p>This repo gets you from “empty vCenter resource pool” to a working
+Debian VM running Docker + Containerlab + an Arista cEOS topology + a
+Python automation environment, so you can practice
+OSPF/BGP/IS-IS/IPSec/VXLAN and network automation against real
+(virtualized) EOS instances.</p>
+<p><strong>The automation story here leads with Nornir, NAPALM, and
+Netmiko</strong> — pure Python, no Ansible infrastructure required to
+get value on day one. Ansible tooling is also included and fully
+working, parked as an optional path for later if/when there’s appetite
+for the bigger investment (collections, Vault, playbook structure). See
+<a href="#two-automation-paths">Two automation paths</a> for why it’s
+laid out this way.</p>
+<p>It’s split into two parts:</p>
+<ol type="1">
+<li><strong>Create the VM</strong> — one-time, per person.
+<ul>
+<li>Corporate vCenter/ESXi: <a
+href="docs/vcenter-vm-setup.md"><code>docs/vcenter-vm-setup.md</code></a></li>
+<li>Proxmox home lab: <a
+href="docs/proxmox-vm-setup.md"><code>docs/proxmox-vm-setup.md</code></a>
+(use a <strong>VM</strong>, not an LXC — that doc explains why)</li>
+</ul></li>
+<li><strong>In-VM setup</strong> — run <code>./setup.sh</code> and
+answer a few questions. See <a href="#quick-start">Quick Start</a>.</li>
+</ol>
+<p>Getting these files onto the VM (git / scp / zip): <a
+href="docs/distributing.md"><code>docs/distributing.md</code></a>.</p>
+<p>The scripts are hypervisor-agnostic — they detect the network
+interface name rather than assuming VMware’s <code>ens192</code>, and
+handle both Debian’s classic <code>.list</code> and modern deb822
+<code>.sources</code> apt formats.</p>
+<h2 id="new-here-take-the-course-instead">🎓 New here? Take the course
+instead</h2>
+<p><strong>Don’t start with this README — start with <a
+href="course/README.md"><code>course/README.md</code></a>.</strong> It’s
+a guided, module-by-module path built for Aston engineers: platform
+build → Containerlab basics → a spine-leaf fabric configured by hand →
+the same fabric automated with Nornir/NAPALM → a VXLAN+EVPN overlay with
+an automation capstone → secrets management. Its <a
+href="course/00-orientation.md">Module 00</a> is a map of this entire
+repo — every file explained, plus a decision tree for “I want to change
+X, which file do I touch, which command do I run?” — worth reading even
+if you skip everything else.</p>
+<p>This README is the <em>reference</em>. The course is the
+<em>path</em>.</p>
+<hr />
+<h2 id="what-you-end-up-with">What you end up with</h2>
+<ul>
+<li>Debian 13 (Trixie) VM, routable on the work WiFi /23 subnet (no NAT,
+no jump hosts)</li>
+<li>Docker CE</li>
+<li>Containerlab (latest release, auto-detected by the official
+installer)</li>
+<li>A working directory layout under <code>~/labs</code></li>
+<li>A Python virtualenv with Nornir, NAPALM, Netmiko, and Ansible —
+built with <a href="https://astral.sh/uv"><code>uv</code></a> if
+available, falling back to plain <code>pip</code> otherwise (see <a
+href="#tooling-choices">Tooling choices</a>)</li>
+<li>A ready-to-deploy 2-node cEOS test topology to confirm everything
+works end-to-end before you build anything bigger</li>
+<li>A four-script progressive automation demo
+(<code>automation/nornir/</code>) that needs <strong>zero credential
+setup</strong> to run, because containerlab already bakes cEOS’s default
+creds into its auto-generated inventory — plus three working secrets
+backends (<code>.env</code>, <code>pass</code>,
+<code>sops</code>+<code>age</code>) to demonstrate when you’re ready to
+stop trusting defaults</li>
+<li>A parallel Ansible setup (<code>automation/ansible/</code>) with
+proper Vault-based secrets management, ready when you want it</li>
+</ul>
+<h2 id="what-this-does-not-automate">What this does NOT automate</h2>
+<ul>
+<li><strong>Downloading the vendor images.</strong> Arista’s cEOS portal
+(and Fortinet’s) sits behind an authenticated account per their EULAs,
+so there’s no way to script the download legally or reliably. Grab them
+from the <a
+href="https://drive.google.com/drive/folders/1kBDv_xgv4T4NQJfWZtLKkCnYbmcfs9KU?usp=drive_link">team
+Drive</a> or the vendor directly, then <code>scp</code> to the VM — see
+<a href="#getting-the-images">Getting the images</a>.</li>
+<li><strong>vCenter VM creation.</strong> vSphere doesn’t expose a good
+non-interactive path for this without govc/PowerCLI/Terraform, which is
+more setup than it’s worth for a handful of lab VMs. Follow
+<code>docs/vcenter-vm-setup.md</code> instead — it’s about 10 minutes of
+clicking.</li>
+</ul>
+<hr />
+<h2 id="quick-start">Quick Start</h2>
+<p>Assumes you’ve already built the VM per
+<code>docs/vcenter-vm-setup.md</code> and can SSH into it.</p>
+<p><strong>On a minimal/netinst Debian install, check one thing
+first.</strong> The netinst image ships almost nothing, and if you set a
+root password during installation, Debian does <em>not</em> add your
+user to the <code>sudo</code> group. <code>setup.sh</code> checks for
+both and tells you how to fix it, but you can get ahead of it:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># If `sudo -v` fails or sudo isn&#39;t installed at all:</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">su</span> <span class="at">-</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">apt-get</span> update <span class="kw">&amp;&amp;</span> <span class="ex">apt-get</span> install <span class="at">-y</span> sudo</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="ex">usermod</span> <span class="at">-aG</span> sudo <span class="op">&lt;</span>your-user<span class="op">&gt;</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">exit</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co"># then log out and back in — group changes need a new login</span></span></code></pre></div>
+<p>Everything else (<code>curl</code>, <code>gnupg</code>,
+<code>ca-certificates</code>, <code>iproute2</code>) is installed
+automatically by <code>setup.sh</code> before it needs them.</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Get these files onto the VM (git clone, scp, or unzip —</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co">#    see docs/distributing.md for all three)</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone <span class="op">&lt;</span>your-internal-git-url<span class="op">&gt;</span> ~/clab-bootstrap</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/clab-bootstrap</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Run the guided setup — it asks what you want and explains as it goes</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="fu">chmod</span> +x setup.sh lab scripts/<span class="pp">*</span>.sh</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="ex">./setup.sh</span></span></code></pre></div>
+<p>That’s it. <code>setup.sh</code> walks through everything below
+interactively: installing Docker/Containerlab/Python tooling, importing
+the cEOS image, deploying a test topology, and picking an automation
+path.</p>
+<p><strong>Re-running is the normal case.</strong> Every step checks
+real state before acting, so a second run is a no-op and a third is
+identical to the second. It’s the update path after a
+<code>git pull</code>, and the repair path after a run that died halfway
+— it detects and rebuilds a half-built venv, restarts a stopped Docker
+daemon, and disables apt repos whose signing key went missing. Setup
+opens with a survey of what’s already in place so you can see what it
+intends to do before it does it.</p>
+<h3 id="watching-it-work">Watching it work</h3>
+<p>Long steps show a live status line: spinner, elapsed time, and the
+most recent line of output, redrawn in place. The clock keeps ticking
+even when a command is silent, so a slow step never looks like a hung
+one.</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<tbody>
+<tr>
+<td><code>./setup.sh</code></td>
+<td>default — one live status line per step</td>
+</tr>
+<tr>
+<td><code>CLAB_VERBOSE=1 ./setup.sh</code></td>
+<td>stream every command’s full output; use when a step fails</td>
+</tr>
+<tr>
+<td><code>CLAB_QUIET=1 ./setup.sh</code></td>
+<td>step titles and timings only, no per-line detail</td>
+</tr>
+</tbody>
+</table>
+<p>Full output always lands in <code>/tmp/clab-setup.log</code>
+regardless of mode, and the last 40 lines are printed automatically if a
+step fails.</p>
+<p><strong>Prefer to drive manually?</strong> Everything
+<code>setup.sh</code> does is just the numbered scripts, runnable
+directly:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/00-bootstrap.sh</span>                              <span class="co"># Docker, Containerlab, Python env</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/01-import-ceos.sh</span> ~/cEOS64-lab-<span class="op">&lt;</span>version<span class="op">&gt;</span>.tar.xz   <span class="co"># verify + import cEOS</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/02-deploy-lab.sh</span>                             <span class="co"># deploy the test topology</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="ex">./automation/link-inventory.sh</span> ~/labs/topologies/clab-testlab</span></code></pre></div>
+<p>Log out and back in after the first run (or
+<code>newgrp docker &amp;&amp; newgrp clab_admins</code>) so your group
+memberships take effect.</p>
+<p>Then run the automation demo:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">netauto</span>   <span class="co"># activates the automation venv (alias added to ~/.bashrc)</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> automation/nornir</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> 01_netmiko_hello.py</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> 02_nornir_scale.py</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> 03_napalm_facts.py</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> 04_idempotent_deploy.py</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="ex">python3</span> 04_idempotent_deploy.py   <span class="co"># run again — this time nothing changes</span></span></code></pre></div>
+<p><code>automation/nornir/README.md</code> walks through what each
+script demonstrates and why — that’s the one worth reading before
+showing this to coworkers. Ansible is available too, whenever you want
+it — see <a href="#two-automation-paths">Two automation paths</a>.</p>
+<hr />
+<h2 id="getting-the-images">Getting the images</h2>
+<p>Two images can’t be fetched by any script: Arista cEOS and, if you’re
+running the FortiGate topology, the FortiGate qcow2. Both sit behind
+vendor accounts.</p>
+<h3 id="team-drive-fastest">Team Drive (fastest)</h3>
+<p><strong><a
+href="https://drive.google.com/drive/folders/1kBDv_xgv4T4NQJfWZtLKkCnYbmcfs9KU?usp=drive_link"
+class="uri">https://drive.google.com/drive/folders/1kBDv_xgv4T4NQJfWZtLKkCnYbmcfs9KU?usp=drive_link</a></strong></p>
+<pre><code>ContainerLab/Arista Images/
+    cEOS64-lab-4.34.7M.tar.xz              &lt;- the image
+    cEOS64-lab-4.34.7M.tar.xz.sha512sum    &lt;- grab this too, the import verifies it
+    cEOS64-lab-4.34.7M.tar.xz.md5sum
+    cEOS64-lab-4.34.7M.tar.xz.json
+    cEOS64-lab-4.34.7M.tar.xz.cms.pem
+
+ContainerLab/Fortigate Images/
+    fortinet-FGT-v7.0.9-build0444.qcow2</code></pre>
+<p>Download the <code>.tar.xz</code> <strong>and</strong> its
+<code>.sha512sum</code> into the same directory —
+<code>01-import-ceos.sh</code> re-verifies the hash and warns if the
+checksum file is absent.</p>
+<p>This mirror is for people who already hold the relevant Arista and
+Fortinet entitlements; it’s a convenience, not a substitute for having
+one.</p>
+<h3 id="or-straight-from-the-vendor">Or straight from the vendor</h3>
+<ol type="1">
+<li><p>On your own laptop (not the VM), log into <a
+href="https://www.arista.com/en/support/software-download">Arista
+Software Downloads</a> with your Arista account.</p></li>
+<li><p>Software Downloads → <strong>cEOS-lab</strong> → download the
+latest 64-bit <code>.tar.xz</code> and its matching
+<code>.sha512sum</code> file.</p></li>
+<li><p>Verify the download is intact before you burn bandwidth pushing a
+bad file to the VM:</p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">shasum</span> <span class="at">-a</span> 512 <span class="at">-c</span> cEOS64-lab-<span class="op">&lt;</span>version<span class="op">&gt;</span>.tar.xz.sha512sum</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># must print OK</span></span></code></pre></div></li>
+</ol>
+<p>FortiGate images come from <a href="https://support.fortinet.com"
+class="uri">https://support.fortinet.com</a> → Download → VM Images →
+the KVM image.</p>
+<h3 id="getting-it-onto-the-vm">Getting it onto the VM</h3>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">scp</span> cEOS64-lab-<span class="op">&lt;</span>version<span class="op">&gt;</span>.tar.xz cEOS64-lab-<span class="op">&lt;</span>version<span class="op">&gt;</span>.tar.xz.sha512sum yourname@<span class="op">&lt;</span>VM-IP<span class="op">&gt;</span>:~/</span></code></pre></div>
+<p>Then on the VM, <code>setup.sh</code> finds it automatically, or run
+the import directly:</p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/01-import-ceos.sh</span> ~/cEOS64-lab-<span class="op">&lt;</span>version<span class="op">&gt;</span>.tar.xz</span></code></pre></div>
+<p>It re-verifies the hash (catching corruption from the transfer
+itself) and imports with a progress bar.</p>
+<p>FortiGate is a different workflow — it’s a VM image, not a container,
+so it has to be built with vrnetlab and needs nested virtualization
+enabled on the hypervisor (on vSphere that’s <strong>Expose hardware
+assisted virtualization to the guest OS</strong>, VM powered off). One
+command does the whole thing:</p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./lab</span> fortigate</span></code></pre></div>
+<p>It checks <code>/dev/kvm</code> first and names the exact hypervisor
+setting if it’s missing, then clones vrnetlab, builds, and reconciles
+your topology’s <code>image:</code> tag with whatever the build
+produced. Full walkthrough and manual steps: <strong><a
+href="docs/vrnetlab-fortigate.md"><code>docs/vrnetlab-fortigate.md</code></a></strong>.</p>
+<h3 id="image-tags">Image tags</h3>
+<p>Because everyone downloads their own build, the cEOS version differs
+per person — so the topologies reference
+<strong><code>ceos:latest</code></strong> rather than a pinned version.
+<code>01-import-ceos.sh</code> tags each import as both
+<code>ceos:&lt;version&gt;</code> and <code>ceos:latest</code>, so
+<code>docker images</code> still shows exactly what you have while the
+topologies keep working across upgrades.</p>
+<p><code>02-deploy-lab.sh</code> checks the topology’s image exists
+locally before deploying. This matters because containerlab treats a
+missing image as “pull it from a registry”, and cEOS is on no public
+registry — so a tag mismatch surfaces as:</p>
+<pre><code>pull access denied for ceos, repository does not exist or may require &#39;docker login&#39;</code></pre>
+<p>which looks like an authentication problem but is always local. The
+preflight reports the real cause and lists what you actually have
+imported. If <code>ceos:latest</code> is missing but exactly one cEOS
+image exists, it adopts that one automatically.</p>
+<p>To pin a specific version instead, set
+<code>image: ceos:&lt;version&gt;</code> in the topology — the preflight
+validates that too.</p>
+<hr />
+<h2 id="driving-the-lab">Driving the lab</h2>
+<p><strong><code>./lab</code> is the day-to-day tool.</strong>
+<code>setup.sh</code> builds the platform once; <code>./lab</code> is
+what you run every time after that. Run it bare for a menu, or give it a
+verb:</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./lab</span>                 <span class="co"># menu — pick from a list</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./lab</span> status          <span class="co"># what&#39;s running right now</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./lab</span> deploy          <span class="co"># bring the lab up</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="ex">./lab</span> ssh             <span class="co"># log into a node (user admin, password admin)</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="ex">./lab</span> cli             <span class="co"># EOS CLI without SSH — works when SSH doesn&#39;t</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="ex">./lab</span> graph           <span class="co"># topology diagram in a browser</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="ex">./lab</span> destroy         <span class="co"># tear it down (cEOS nodes eat RAM)</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="ex">./lab</span> topo            <span class="co"># switch which topology the above act on</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="ex">./lab</span> learn           <span class="co"># where to go next in the course</span></span></code></pre></div>
+<p>It remembers which topology you selected, so <code>./lab graph</code>
+after <code>./lab topo spine-leaf.clab.yml</code> does the right
+thing.</p>
+<p><code>setup.sh</code> stops at a natural checkpoint once the test
+topology deploys and asks whether you want to continue into the
+automation walkthrough. Answering no is a normal, complete outcome — it
+prints the same “what now?” card and you carry on with
+<code>./lab</code>. Re-run <code>./setup.sh</code> whenever you want the
+rest; it skips everything already done.</p>
+<h3 id="the-underlying-script">The underlying script</h3>
+<p><code>./lab</code> wraps <code>02-deploy-lab.sh</code>, which you can
+also drive directly:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/02-deploy-lab.sh</span>            <span class="co"># deploy the test topology (default)</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/02-deploy-lab.sh</span> inspect    <span class="co"># what&#39;s running, and node IPs</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/02-deploy-lab.sh</span> graph      <span class="co"># topology diagram in a browser</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/02-deploy-lab.sh</span> destroy    <span class="co"># tear it down (cEOS nodes eat RAM)</span></span></code></pre></div>
+<p>The action can be the only argument, or you can name a topology first
+— <code>./scripts/02-deploy-lab.sh spine-leaf.clab.yml graph</code>. A
+bare filename is resolved against <code>~/labs/topologies/</code> and
+the repo’s <code>topologies/</code>.</p>
+<p><code>graph</code> starts containerlab’s built-in web server on port
+<strong>50080</strong> and runs in the foreground until you Ctrl-C. It
+prints the VM’s actual address, so over SSH just open the URL it gives
+you. Graphing reads the <code>.clab.yml</code> and doesn’t require a
+running lab — deploying first only makes node state meaningful. If the
+page won’t load from your laptop, check that nothing is filtering 50080
+between you and the VM.</p>
+<p>To confirm the lab is up without the browser:</p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> containerlab inspect <span class="at">-t</span> ~/labs/topologies/testlab.clab.yml</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> ps <span class="at">--filter</span> name=clab-testlab</span></code></pre></div>
+<hr />
+<h2 id="two-automation-paths">Two automation paths</h2>
+<p><strong>Nornir / NAPALM / Netmiko (<code>automation/nornir/</code>) —
+start here.</strong> Pure Python, no framework-specific YAML DSL to
+learn, no collections to install, and — specific to this lab — no
+credentials to set up at all, because containerlab already bakes cEOS’s
+default <code>admin</code>/<code>admin</code> into its auto-generated
+inventory. The four scripts in there walk the same Netmiko → Nornir →
+NAPALM → idempotent-deploy progression as the team’s automation course,
+just retargeted from GNS3 + a bastion-host VM onto this Containerlab
+topology. This is the version worth demoing to coworkers who haven’t
+seen network automation before: the distance from “nothing installed” to
+“watch this self-heal a config drift” is about five minutes.</p>
+<p><strong>Ansible (<code>automation/ansible/</code>) — available, not
+required.</strong> Fully working, including proper Ansible Vault secrets
+management (see <a href="#secrets-management">Secrets management</a>).
+Ansible’s real strength — a huge module ecosystem, idempotent primitives
+built into every module, agentless execution — pays for itself once an
+org has existing playbooks, roles, and people fluent in the YAML
+structure, or is running something like AWX/Ansible Automation Platform.
+Standing all of that up just to prove automation works at all is a lot
+of ceremony for a first demo, which is why it’s not the default path
+here. It’s kept fully set up in this repo specifically so it’s a config
+away, not a rewrite, whenever that investment makes sense for the
+team.</p>
+<p>Both paths point at the same containerlab-generated inventory
+(<code>automation/link-inventory.sh</code> refreshes both at once), so
+nothing about the lab itself changes depending on which tool you reach
+for.</p>
+<hr />
+<h2 id="tooling-choices">Tooling choices</h2>
+<p>Worth calling out explicitly, since a couple of these are as much a
+“here’s a good Linux tool” moment for coworkers as they are project
+decisions.</p>
+<p><strong><code>uv</code> instead of plain <code>pip</code> +
+<code>venv</code>.</strong> <a
+href="https://astral.sh/uv"><code>uv</code></a> is a single Rust-native
+binary (from the makers of Ruff) that replaces <code>pip</code> +
+<code>venv</code> + <code>pip-tools</code> + <code>pyenv</code> with one
+fast tool. <code>00-bootstrap.sh</code> installs it automatically
+(<code>curl -LsSf https://astral.sh/uv/install.sh | sh</code>) and uses
+<code>uv pip install -r requirements.txt</code> to build the venv at
+<code>~/.venvs/netauto</code> — dramatically faster than pip on a
+resource-constrained lab VM, especially reinstalling
+<code>ansible-core</code> and its dependency tree.</p>
+<p>If <code>uv</code> can’t be installed (offline box, locked-down
+network policy), the script <strong>falls back automatically</strong> to
+<code>python3 -m venv</code> + plain <code>pip</code> — same venv layout
+either way, so <code>netauto</code> activates it the same way regardless
+of which tool built it.</p>
+<p>There’s also a full <strong><code>uv</code> project mode</strong>
+available if you’d rather work that way day to day, via
+<code>automation/pyproject.toml</code>:</p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> automation</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> sync              <span class="co"># creates automation/.venv/, resolves deps, writes uv.lock</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run python3 nornir/02_nornir_scale.py   <span class="co"># runs in that venv, no activation needed</span></span></code></pre></div>
+<p><code>automation/requirements.txt</code> still exists alongside
+<code>pyproject.toml</code> purely as the pip-only fallback path
+<code>00-bootstrap.sh</code> uses when <code>uv</code> isn’t available —
+hand-kept in sync with <code>pyproject.toml</code>’s dependency
+list.</p>
+<p><strong><code>gum</code> for the setup UI.</strong>
+<code>setup.sh</code> offers to install <a
+href="https://github.com/charmbracelet/gum"><code>gum</code></a> — a
+small Go binary from Charm that gives shell scripts real menus,
+spinners, and styled prompts. It’s installed from Charm’s own apt repo
+(Debian’s repos don’t carry it).</p>
+<p>Entirely optional and purely cosmetic: <code>lib/ui.sh</code>
+implements every UI function twice, once using <code>gum</code> and once
+in plain bash (<code>read</code> prompts, a braille spinner, ANSI
+colors). The fallback isn’t an afterthought — it has to work, because
+<code>setup.sh</code> runs before anything is installed and can’t assume
+<code>gum</code> exists yet.</p>
+<p><strong>Secrets backends.</strong> See <a
+href="#secrets-management">Secrets management</a> below — three
+different tools, deliberately, so there’s a real comparison to show
+coworkers rather than one prescribed answer.</p>
+<hr />
+<h2 id="repo-layout">Repo layout</h2>
+<pre><code>clab-bootstrap/
+├── setup.sh                         &lt;- START HERE (once) — guided platform setup
+├── lab                              &lt;- START HERE (daily) — deploy/ssh/graph/destroy
+├── README.md                        &lt;- you are here
+├── course/                          &lt;- 🎓 the guided course (modules 00-06)
+│   ├── README.md                    &lt;- course overview + module index
+│   ├── 00-orientation.md            &lt;- FILE MAP + DECISION TREE — read this when lost
+│   ├── 01-platform.md               &lt;- VM + setup.sh
+│   ├── 02-containerlab-basics.md    &lt;- the lab lifecycle, on the 2-node testlab
+│   ├── 03-spine-leaf.md             &lt;- Clos fabric + OSPF underlay, by hand
+│   ├── 04-automation.md             &lt;- same underlay via Nornir/NAPALM + bespoke script
+│   ├── 05-vxlan-evpn.md             &lt;- overlay + automation capstone
+│   └── 06-secrets.md                &lt;- credential management tour
+├── lib/ui.sh                        &lt;- terminal UI helpers (gum, w/ plain-bash fallback)
+├── docs/
+│   ├── vcenter-vm-setup.md          &lt;- vCenter/vSphere steps (incl. nested virt toggle)
+│   ├── proxmox-vm-setup.md          &lt;- Proxmox home-lab steps (+ why VM not LXC)
+│   ├── vrnetlab-fortigate.md        &lt;- building VM-based nodes (FortiGate) with vrnetlab
+│   └── distributing.md              &lt;- git vs scp vs zip, for sharing with the team
+├── scripts/
+│   ├── 00-bootstrap.sh              &lt;- OS + Docker + Containerlab + venv (uv, w/ pip fallback)
+│   ├── 01-import-ceos.sh            &lt;- verify + docker import cEOS (tags ceos:latest)
+│   ├── 02-deploy-lab.sh             &lt;- deploy / destroy / inspect / graph a topology
+│   ├── 03-build-vrnetlab.sh         &lt;- build FortiGate (or other VM images) via vrnetlab
+│   └── sync-labs.sh                 &lt;- keep ~/labs/topologies in step with the repo
+├── topologies/
+│   ├── testlab.clab.yml             &lt;- 2-node back-to-back cEOS smoke test
+│   ├── spine-leaf.clab.yml          &lt;- 2-spine/2-leaf Clos fabric (course modules 03-05)
+│   └── memory-test.clab.yml         &lt;- 10-node mixed lab: 2x FortiGate + 4x cEOS + FRR/hosts
+└── automation/
+    ├── requirements.txt             &lt;- pip fallback (pyproject.toml is uv&#39;s source of truth)
+    ├── pyproject.toml               &lt;- uv project manifest — `cd automation &amp;&amp; uv sync`
+    ├── link-inventory.sh            &lt;- symlinks containerlab&#39;s generated inventory in
+    ├── lib/vault.py                 &lt;- shared Ansible Vault decryptor
+    ├── nornir/                      &lt;- START HERE — zero-setup demo path
+    │   ├── README.md                &lt;- walkthrough + &quot;what to point out to coworkers&quot;
+    │   ├── SECRETS.md                &lt;- .env vs pass vs sops+age, compared in depth
+    │   ├── config.yaml
+    │   ├── creds.py                 &lt;- picks up NORNIR_USERNAME/PASSWORD if set, else no-op
+    │   ├── .env.example
+    │   ├── secrets.example.yaml     &lt;- template for the sops+age-encrypted secrets file
+    │   ├── run-with-env.sh          &lt;- wrapper: inject creds from .env
+    │   ├── run-with-pass.sh         &lt;- wrapper: inject creds from `pass`
+    │   ├── run-with-sops.sh         &lt;- wrapper: inject creds from sops+age
+    │   ├── 01_netmiko_hello.py
+    │   ├── 02_nornir_scale.py
+    │   ├── 03_napalm_facts.py
+    │   ├── 04_idempotent_deploy.py
+    │   ├── 05_spineleaf_underlay.py &lt;- deploys the fabric underlay (course module 04)
+    │   ├── templates/ceos_base.j2
+    │   ├── templates/spineleaf_underlay.j2
+    │   └── nornir-simple-inventory.yml   &lt;- symlink, created by link-inventory.sh (not in git)
+    └── ansible/                     &lt;- optional, available when you want it
+        ├── ansible.cfg
+        ├── requirements.yml         &lt;- Galaxy collections: arista.eos, ansible.netcommon
+        ├── group_vars/ceos/
+        │   ├── vars.yml             &lt;- plaintext connection settings
+        │   └── vault.yml.example    &lt;- copy to vault.yml, fill in, then `ansible-vault encrypt`
+        ├── inventory.yml            &lt;- symlink, created by link-inventory.sh (not in git)
+        └── playbooks/gather_facts.yml</code></pre>
+<p>Inventory files are never committed or maintained by hand —
+containerlab regenerates them fresh in the
+<code>clab-&lt;labname&gt;/</code> directory every time you
+<code>deploy</code>, and <code>automation/link-inventory.sh</code>
+points both Nornir and Ansible at whichever lab you last deployed.</p>
+<h2 id="secrets-management">Secrets management</h2>
+<p>Four approaches live in this repo, deliberately spanning “zero
+ceremony” to “production-grade” — worth showing coworkers side by side
+as a “how much tooling do you actually need” comparison rather than a
+single prescribed answer. Full detail (install steps, day-to-day
+commands, when each earns its keep) is in <strong><a
+href="automation/nornir/SECRETS.md"><code>automation/nornir/SECRETS.md</code></a></strong>;
+short version:</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr>
+<th>Backend</th>
+<th>Where</th>
+<th>Ceremony</th>
+<th>Good for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.env</code> file</td>
+<td><code>automation/nornir/run-with-env.sh</code></td>
+<td>None — plaintext, gitignored</td>
+<td>Solo lab, fastest demo</td>
+</tr>
+<tr>
+<td><code>pass</code></td>
+<td><code>automation/nornir/run-with-pass.sh</code></td>
+<td>GPG key + keyring</td>
+<td>Individuals/teams already using GPG</td>
+</tr>
+<tr>
+<td><code>sops</code> + <code>age</code></td>
+<td><code>automation/nornir/run-with-sops.sh</code></td>
+<td>age keypair, no keyring ceremony</td>
+<td>Diff-friendly, git-committable, closest to real GitOps/CI
+pipelines</td>
+</tr>
+<tr>
+<td>Ansible Vault</td>
+<td><code>automation/ansible/</code></td>
+<td>Vault password, Galaxy collections</td>
+<td>The Ansible path specifically; production-standard for Ansible
+shops</td>
+</tr>
+</tbody>
+</table>
+<p>All three Nornir-path backends work the same way under the hood: they
+set <code>NORNIR_USERNAME</code> / <code>NORNIR_PASSWORD</code> in the
+environment before a script runs, and
+<code>automation/nornir/creds.py</code> (imported by every numbered
+script) overrides the inventory defaults if it finds them set —
+otherwise it’s a no-op and you get the zero-setup behavior described
+earlier.</p>
+<p><strong>Ansible Vault</strong>, briefly (full walkthrough was already
+worked out earlier in this repo’s history and lives in
+<code>automation/ansible/</code>): an AES256-encrypted YAML file,
+decrypted with a password you’re prompted for at runtime
+(<code>--ask-vault-pass</code>). One-time setup from
+<code>automation/ansible/group_vars/ceos/</code>:</p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> vault.yml.example vault.yml</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">nano</span> vault.yml                 <span class="co"># fill in real credentials</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="ex">ansible-vault</span> encrypt vault.yml</span></code></pre></div>
+<p>then
+<code>ansible-playbook --ask-vault-pass playbooks/gather_facts.yml</code>.
+Day to day: <code>ansible-vault view|edit|rekey vault.yml</code>. For
+unattended/CI runs, <code>ANSIBLE_VAULT_PASSWORD_FILE</code>
+(gitignored) or <code>--vault-password-file</code> instead of typing it.
+<code>automation/lib/vault.py</code> even lets a Nornir script decrypt
+that same vault file, if you want to mix approaches.</p>
+<p><strong>Where all of these diverge from a large enterprise:</strong>
+none of the four gives you credential rotation, per-user audit trails,
+or short-lived dynamic secrets on their own. Real shops back this with a
+centralized secrets manager — HashiCorp Vault, CyberArk,
+Thycotic/Delinea, or a cloud provider’s secrets manager — with CI
+pipelines pulling credentials at run time (<code>sops</code> in
+particular is usually paired with a cloud KMS instead of
+<code>age</code> at that scale, same workflow, different backend). The
+underlying discipline — reference a variable name, never a literal
+secret, in anything that gets committed — is the same either way;
+swapping the backend later is a config change, not a rewrite.</p>
+<h2 id="distributing-this-to-the-team">Distributing this to the
+team</h2>
+<p>Three options — internal git repo (recommended), <code>scp</code>, or
+a zip file — with full step-by-step for each in <strong><a
+href="docs/distributing.md"><code>docs/distributing.md</code></a></strong>.</p>
+<p>Short version, if you have an internal git host:</p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> init <span class="kw">&amp;&amp;</span> <span class="fu">git</span> add . <span class="kw">&amp;&amp;</span> <span class="fu">git</span> commit <span class="at">-m</span> <span class="st">&quot;Containerlab automation lab bootstrap&quot;</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> remote add origin <span class="op">&lt;</span>your-internal-git-url<span class="op">&gt;</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> push <span class="at">-u</span> origin main</span></code></pre></div>
+<p>Then each coworker runs, on their own VM:</p>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone <span class="op">&lt;</span>your-internal-git-url<span class="op">&gt;</span> ~/clab-bootstrap</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/clab-bootstrap <span class="kw">&amp;&amp;</span> <span class="ex">./setup.sh</span></span></code></pre></div>
+<p>Updates later are <code>git pull &amp;&amp; ./setup.sh</code> — the
+setup script skips whatever’s already done.</p>
+<h2 id="notes-on-the-original-build">Notes on the original build</h2>
+<p>The reference build used Debian 13 (Trixie). At the time, Docker’s
+repo only published <code>bookworm</code> packages for Trixie hosts and
+Containerlab had to be pinned, which caused some install friction. As of
+this writing Docker publishes packages directly under the
+<code>trixie</code> codename and Containerlab’s installer
+(<code>get.containerlab.dev</code>) auto-detects the latest release, so
+<code>00-bootstrap.sh</code> uses the native <code>trixie</code> repo by
+default. If Docker repo 404s on your build date, edit the
+<code>DOCKER_CODENAME</code> variable near the top of
+<code>00-bootstrap.sh</code> and set it to <code>bookworm</code> as a
+fallback — that’s the workaround that was needed previously.</p>
+<p>The automation approach itself also traces back further, to a team
+automation course originally run against a GNS3 topology reached through
+a bastion-host VM (Ubuntu jumpbox + DNAT on an edge router). The Netmiko
+→ Nornir → NAPALM progression in <code>automation/nornir/</code> mirrors
+that course directly; only the underlying lab platform changed, from
+GNS3 + bastion to Containerlab running locally on this VM.</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause / Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ifdown: dhcpd is not running</code></td>
+<td>Benign — that’s the DHCP <em>server</em> daemon, not the client.
+Ignore it.</td>
+</tr>
+<tr>
+<td>No DHCP lease</td>
+<td>Confirm the VM’s NIC is attached to a bridge/port group with DHCP —
+<code>vmbr0</code> on Proxmox, the routable port group on VMware — and
+that you picked VirtIO (Proxmox) or VMXNET3 (VMware). Try
+<code>sudo dhclient -v &lt;iface&gt;</code>.</td>
+</tr>
+<tr>
+<td>apt warns “configured multiple times”</td>
+<td>Duplicate repo entries. Check for a stray
+<code>/etc/apt/sources.list.d/trixie.list</code> alongside the stock
+<code>debian.sources</code> and delete the one you didn’t intend.</td>
+</tr>
+<tr>
+<td><code>docker: 404</code> on apt update</td>
+<td>Docker hasn’t published your release yet.
+<code>00-bootstrap.sh</code> detects the codename from
+<code>/etc/os-release</code> and retries against <code>bookworm</code>
+automatically; force it with
+<code>DOCKER_CODENAME=bookworm ./scripts/00-bootstrap.sh</code>.</td>
+</tr>
+<tr>
+<td><code>sudo: command not found</code>, or “user is not in the sudoers
+file”</td>
+<td>Debian’s installer skips <code>sudo</code> and leaves your user out
+of the <code>sudo</code> group when you set a root password. See the
+Quick Start note above.</td>
+</tr>
+<tr>
+<td>Spinner spins forever, never finishes</td>
+<td>Something under the spinner is waiting on input you can’t see. Setup
+primes <code>sudo</code> up front to prevent this; if it recurs, re-run
+with <code>CLAB_VERBOSE=1 ./setup.sh</code> to see the prompt.</td>
+</tr>
+<tr>
+<td>A step fails and you can’t tell why</td>
+<td><code>CLAB_VERBOSE=1 ./setup.sh</code> skips the spinner and streams
+every command’s output live. Or run the underlying script directly:
+<code>bash scripts/00-bootstrap.sh</code>.</td>
+</tr>
+<tr>
+<td><code>E: The repository ... is not signed</code> /
+<code>Failed to parse keyring</code></td>
+<td>A repo file whose <code>signed-by=</code> key is missing — an
+interrupted install can leave <code>charm.list</code> or
+<code>docker.list</code> behind without its keyring. This breaks
+<strong>every</strong> <code>apt-get update</code> on the box, not just
+this script’s. <code>setup.sh</code> now detects it during preflight and
+offers to disable the file; to fix by hand,
+<code>sudo rm /etc/apt/sources.list.d/&lt;name&gt;.list</code>.</td>
+</tr>
+<tr>
+<td><code>apt-get update</code> fails during bootstrap</td>
+<td>Run <code>sudo apt-get update</code> by hand — the failing repo is
+named in the error. Then <code>ls /etc/apt/sources.list.d/</code> to see
+what’s configured.</td>
+</tr>
+<tr>
+<td><code>ssh spine1</code> fails, “could not resolve hostname”</td>
+<td>New shell session hasn’t picked up
+<code>/etc/ssh/ssh_config.d/</code>. Log out/in, or use
+<code>sudo containerlab inspect -t &lt;file&gt;</code> to get the IP
+directly.</td>
+</tr>
+<tr>
+<td><code>pull access denied for ceos, repository does not exist</code></td>
+<td>Not an auth problem — the topology’s <code>image:</code> tag doesn’t
+match anything imported locally, so containerlab tried a registry. Run
+<code>docker images \| grep ceos</code> and either
+<code>docker tag &lt;image&gt; ceos:latest</code> or set the topology’s
+<code>image:</code> to match. <code>02-deploy-lab.sh</code> now checks
+this up front.</td>
+</tr>
+<tr>
+<td>Deploy uses an old topology after a <code>git pull</code></td>
+<td><code>~/labs/topologies/</code> is the working copy
+<code>02-deploy-lab.sh</code> defaults to. The bootstrap syncs it from
+the repo, but leaves files you’ve edited alone (it says so when it
+does). Delete your copy to take the repo version.</td>
+</tr>
+<tr>
+<td>cEOS import “hash mismatch”</td>
+<td>Re-verify on your laptop first (<code>shasum -a 512 -c ...</code>);
+if that’s OK, the corruption happened in transit — re-<code>scp</code>
+and don’t let the laptop sleep mid-transfer.</td>
+</tr>
+<tr>
+<td><code>04_idempotent_deploy.py</code> shows a diff every run, never
+settles</td>
+<td>cEOS eAPI config compare can be picky about exact syntax — check
+<code>templates/ceos_base.j2</code> renders valid EOS config by hand
+first (<code>ssh</code> in and paste it).</td>
+</tr>
+<tr>
+<td><code>uv: command not found</code> right after bootstrap</td>
+<td><code>uv</code> installs to <code>~/.local/bin</code>; open a new
+shell (or <code>source ~/.bashrc</code>) so <code>PATH</code> picks it
+up.</td>
+</tr>
+<tr>
+<td><code>sops: command not found</code></td>
+<td>No apt package on Debian — see
+<code>automation/nornir/SECRETS.md</code> for the
+<code>.deb</code>-from-GitHub-releases install.</td>
+</tr>
+<tr>
+<td><code>setup.sh: Permission denied</code></td>
+<td><code>scp</code>/<code>unzip</code> didn’t preserve the executable
+bit: <code>chmod +x setup.sh lab scripts/*.sh</code></td>
+</tr>
+<tr>
+<td>Setup failed partway through</td>
+<td>Re-run <code>./setup.sh</code> — completed steps are detected and
+skipped. Full output is in <code>/tmp/clab-setup.log</code>.</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

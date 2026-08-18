@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>03-spine-leaf</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="google-sans-flex.css" />
+</head>
+<body>
+<h1 id="module-03-the-spine-leaf-fabric">Module 03 — The Spine-Leaf
+Fabric</h1>
+<p><strong>Goal:</strong> deploy the 4-node Clos fabric and bring up its
+OSPF underlay <strong>by hand, on every node</strong>. Yes, by hand, on
+purpose: module 04 automates exactly this, and the automation only lands
+if you’ve felt the repetition it removes.</p>
+<hr />
+<h2 id="why-spine-leaf-at-all">1. Why spine-leaf at all</h2>
+<p>The classic three-tier design (access/distribution/core) was built
+for north-south traffic — clients talking to servers somewhere else.
+Modern data centers are dominated by east-west traffic — servers talking
+to each other — and three-tier gives that traffic wildly inconsistent
+path lengths and a redundancy story built on spanning-tree’s “block half
+your links” model.</p>
+<p>A Clos fabric fixes this with brute symmetry: <strong>every leaf
+connects to every spine</strong>. Any leaf-to-leaf path is exactly two
+hops. All links are routed and all links forward (ECMP), so adding
+bandwidth means adding a spine, not forklifting a core. This is what
+Arista built its business on, and it’s the substrate VXLAN/EVPN (module
+05) assumes.</p>
+<p>Look at the diagram in <code>topologies/spine-leaf.clab.yml</code>,
+then at its <code>links:</code> block, and confirm they say the same
+thing. Four nodes, four links, full mesh between tiers.</p>
+<h2 id="the-ip-plan">2. The IP plan</h2>
+<p>Written down <em>before</em> configuring anything, like an adult:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>What</th>
+<th>Value</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>spine1 Loopback0</td>
+<td>10.255.0.1/32</td>
+<td>Router-ID + stable endpoint. Spines low,</td>
+</tr>
+<tr>
+<td>spine2 Loopback0</td>
+<td>10.255.0.2/32</td>
+<td>leaves at .11+ so the role is readable</td>
+</tr>
+<tr>
+<td>leaf1 Loopback0</td>
+<td>10.255.0.11/32</td>
+<td>straight from the address.</td>
+</tr>
+<tr>
+<td>leaf2 Loopback0</td>
+<td>10.255.0.12/32</td>
+<td></td>
+</tr>
+<tr>
+<td>spine1–leaf1</td>
+<td>10.0.1.0/31 (spine=.0, leaf=.1)</td>
+<td>/31 on p2p links (RFC 3021) —</td>
+</tr>
+<tr>
+<td>spine1–leaf2</td>
+<td>10.0.1.2/31 (spine=.2, leaf=.3)</td>
+<td>standard modern practice, half the</td>
+</tr>
+<tr>
+<td>spine2–leaf1</td>
+<td>10.0.2.0/31 (spine=.0, leaf=.1)</td>
+<td>address burn of /30s. Pattern:</td>
+</tr>
+<tr>
+<td>spine2–leaf2</td>
+<td>10.0.2.2/31 (spine=.2, leaf=.3)</td>
+<td>10.0.&lt;spine#&gt;.x</td>
+</tr>
+</tbody>
+</table>
+<p>Loopbacks matter more here than in enterprise networks: in module 05,
+BGP EVPN peers loopback-to-loopback and VXLAN tunnels terminate on
+loopbacks. The underlay’s <em>entire job</em> is making these /32s
+reachable.</p>
+<h2 id="deploy">3. Deploy</h2>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> ~/clab-bootstrap</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./scripts/02-deploy-lab.sh</span> topologies/spine-leaf.clab.yml</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> stats <span class="at">--no-stream</span>     <span class="co"># meet your new RAM bill</span></span></code></pre></div>
+<h2 id="configure-the-underlay-by-hand">4. Configure the underlay by
+hand</h2>
+<p>The pattern, per node: <code>ip routing</code>, fabric interfaces to
+routed mode with their /31s, Loopback0, OSPF with the router-id. Here’s
+leaf1 completely; derive the other three from the IP plan table —
+deriving is the exercise:</p>
+<pre><code>enable
+configure terminal
+ip routing
+!
+interface Ethernet1
+   description to_spine1_Et1
+   no switchport
+   ip address 10.0.1.1/31
+   ip ospf network point-to-point
+!
+interface Ethernet2
+   description to_spine2_Et1
+   no switchport
+   ip address 10.0.2.1/31
+   ip ospf network point-to-point
+!
+interface Loopback0
+   ip address 10.255.0.11/32
+!
+router ospf 100
+   router-id 10.255.0.11
+   network 10.0.0.0/8 area 0.0.0.0
+   max-lsa 12000
+!
+end
+write memory</code></pre>
+<p>Two details worth understanding rather than copying:</p>
+<ul>
+<li><strong><code>ip ospf network point-to-point</code></strong> — the
+links <em>are</em> p2p, and telling OSPF so skips DR/BDR election:
+faster adjacency, less state, and it’s the fabric convention
+everywhere.</li>
+<li><strong><code>network 10.0.0.0/8 area 0.0.0.0</code></strong> — one
+statement catches loopbacks (10.255.x) and fabric links (10.0.x) both.
+In production you might scope tighter; in a lab, this is the right
+amount of typing.</li>
+</ul>
+<p>Now spine1, spine2, leaf2. As you go, notice what this actually is:
+the same seven-ish stanzas with four values swapped — hostname-ish
+description, two interface IPs, loopback, router-id. Keep count of your
+typos. That count is module 04’s sales pitch.</p>
+<h2 id="verify-like-you-mean-it">5. Verify like you mean it</h2>
+<p>From leaf1:</p>
+<pre><code>show ip ospf neighbor</code></pre>
+<p>Expect <strong>two</strong> neighbors (both spines) in
+<code>FULL</code>. Note there’s no DR/BDR column noise — that’s your
+point-to-point setting working. Then the test that actually matters:</p>
+<pre><code>ping 10.255.0.12 source 10.255.0.11
+show ip route 10.255.0.12</code></pre>
+<p>Loopback-to-loopback, sourced correctly. The route table should show
+<strong>two equal-cost paths</strong> — one via each spine. That’s ECMP,
+and it’s the whole reason the fabric is shaped like this:</p>
+<pre><code>traceroute 10.255.0.12 source 10.255.0.11</code></pre>
+<p>Break something to prove the redundancy is real:
+<code>shutdown</code> leaf1’s Ethernet1, confirm the ping still works
+(all traffic now via spine2), <code>no shutdown</code>, watch the second
+path return to the route table.</p>
+<h2 id="checkpoint">6. Checkpoint</h2>
+<ul class="task-list">
+<li><label><input type="checkbox" />Four nodes, OSPF <code>FULL</code>
+everywhere (leaves see 2 neighbors, spines see 2)</label></li>
+<li><label><input type="checkbox" />Any loopback pings any loopback,
+sourced from a loopback</label></li>
+<li><label><input type="checkbox" /><code>show ip route</code> on a leaf
+shows two ECMP paths to the other leaf</label></li>
+<li><label><input type="checkbox" />Failing one uplink doesn’t break
+loopback reachability</label></li>
+<li><label><input type="checkbox" /><code>write memory</code> on all
+four — module 04 diffs against this config</label></li>
+</ul>
+<h2 id="what-you-learned">What you learned</h2>
+<p>Clos architecture and why east-west traffic demanded it; a
+disciplined IP plan (/31 p2p, role-encoded loopbacks); p2p OSPF; ECMP
+verified by breaking things. And — the real lesson — you just typed
+nearly the same config four times. On four nodes that’s tedious. The
+fabrics this design comes from have four <em>hundred</em>. Hold that
+thought.</p>
+<p>Next: <a href="04-automation.md">Module 04 — Automation</a></p>
+</body>
+</html>

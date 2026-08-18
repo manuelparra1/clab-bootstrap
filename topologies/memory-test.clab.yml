@@ -13,13 +13,13 @@ topology:
     fgt1:
       kind: fortinet_fortigate
       ports:
-        - 8443:443          # HTTPS GUI
-        - 2221:22           # SSH
+        - 8080:80
+        - 2221:22
 
     fgt2:
       kind: fortinet_fortigate
       ports:
-        - 8444:443
+        - 8081:80
         - 2222:22
   
     core-a:

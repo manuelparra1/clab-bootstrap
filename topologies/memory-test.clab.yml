@@ -1,0 +1,74 @@
+name: memory-test
+
+topology:
+  kinds:
+    arista_ceos:                          # underscore
+      image: ceos:latest
+    fortinet_fortigate:                   # underscore
+      image: vrnetlab/vr-fortios:7.0.9 
+    linux:
+      image: quay.io/frrouting/frr:10.2.1
+
+  nodes:
+    fgt1:
+      kind: fortinet_fortigate
+      ports:
+        - 8443:443          # HTTPS GUI
+        - 2221:22           # SSH
+
+    fgt2:
+      kind: fortinet_fortigate
+      ports:
+        - 8444:443
+        - 2222:22
+  
+    core-a:
+      kind: arista_ceos
+    core-b:
+      kind: arista_ceos
+
+    acc-a:
+      kind: arista_ceos
+    acc-b:
+      kind: arista_ceos
+
+    isp1:
+      kind: linux
+      image: quay.io/frrouting/frr:10.2.1
+    isp2:
+      kind: linux
+      image: quay.io/frrouting/frr:10.2.1
+
+    ep1:
+      kind: linux
+      image: praqma/network-multitool:latest
+    ep2:
+      kind: linux
+      image: praqma/network-multitool:latest
+
+  links:
+    # FortiGate HA heartbeat
+    - endpoints: ["fgt1:port2", "fgt2:port2"]
+
+    # FortiGates to core
+    - endpoints: ["fgt1:port3", "core-a:eth1"]
+    - endpoints: ["fgt1:port4", "core-b:eth1"]
+    - endpoints: ["fgt2:port3", "core-a:eth2"]
+    - endpoints: ["fgt2:port4", "core-b:eth2"]
+
+    # Core interconnect
+    - endpoints: ["core-a:eth3", "core-b:eth3"]
+
+    # Core to access
+    - endpoints: ["core-a:eth4", "acc-a:eth1"]
+    - endpoints: ["core-b:eth4", "acc-a:eth2"]
+    - endpoints: ["core-a:eth5", "acc-b:eth1"]
+    - endpoints: ["core-b:eth5", "acc-b:eth2"]
+
+    # ISP side
+    - endpoints: ["fgt1:port5", "isp1:eth1"]
+    - endpoints: ["fgt2:port5", "isp2:eth1"]
+
+    # Endpoints
+    - endpoints: ["acc-a:eth3", "ep1:eth1"]
+    - endpoints: ["acc-b:eth3", "ep2:eth1"]
